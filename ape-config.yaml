@@ -1,0 +1,5 @@
+name: yeth-bootstrap
+ethereum:
+  default_network: local
+  local:
+    default_provider: hardhat
