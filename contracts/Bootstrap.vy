@@ -5,13 +5,24 @@
 @license Copyright (c) Yearn Finance, 2023 - all rights reserved
 """
 
+from vyper.interfaces import ERC20
+
 interface Token:
     def mint(_account: address, _amount: uint256): nonpayable
 
-applications: HashMap[address, uint256]
-deposited: HashMap[address, uint256]
 token: public(immutable(address))
+
+applications: HashMap[address, uint256]
+deposited: uint256
+deposits: HashMap[address, uint256]
+incentives: HashMap[address, HashMap[address, uint256]]
+voted: uint256
+votes_used: HashMap[address, uint256]
+votes: HashMap[address, uint256]
+
 management: public(address)
+treasury: public(address)
+
 whitelist_begin: public(uint256)
 whitelist_end: public(uint256)
 incentive_begin: public(uint256)
@@ -29,35 +40,63 @@ WHITELISTED: constant(uint256) = 2
 def __init__(_token: address):
     token = _token
     self.management = msg.sender
+    self.treasury = msg.sender
 
 @external
 @payable
-def apply(_asset: address):
+def apply(_protocol: address):
     assert msg.value == 1_000_000_000_000_000_000
-    assert self.applications[_asset] == NOTHING
+    assert block.timestamp >= self.whitelist_begin and block.timestamp < self.whitelist_end
+    assert self.applications[_protocol] == NOTHING
+    self.applications[_protocol] = APPLIED
 
 @external
-def whitelist(_asset: address):
+def whitelist(_protocol: address):
     assert msg.sender == self.management
-    assert self.applications[_asset] == APPLIED
-    self.applications[_asset] = WHITELISTED
+    assert self.applications[_protocol] == APPLIED
+    self.applications[_protocol] = WHITELISTED
+
+@external
+def undo_whitelist(_protocol: address):
+    assert msg.sender == self.management
+    assert self.applications[_protocol] == WHITELISTED
+    self.applications[_protocol] = APPLIED
+
+@external
+def incentivise(_protocol: address, _incentive: address, _amount: uint256):
+    assert _amount > 0
+    assert block.timestamp >= self.incentive_begin and block.timestamp < self.incentive_end
+    assert self.applications[_protocol] == WHITELISTED
+    self.incentives[_protocol][_incentive] += _amount
+    assert ERC20(_incentive).transferFrom(msg.sender, self, _amount, default_return_value=True)
 
 @external
 @payable
 def deposit():
     assert msg.value > 0
-    self.deposited[msg.sender] += msg.value
+    assert block.timestamp >= self.deposit_begin and block.timestamp < self.deposit_end
+    self.deposited += msg.value
+    self.deposits[msg.sender] += msg.value
     Token(token).mint(self, msg.value)
 
 @external
-@view
-def has_applied(_asset: address) -> bool:
-    return self.applications[_asset] > NOTHING
+def vote(_protocol: address, _votes: uint256):
+    assert block.timestamp >= self.vote_begin and block.timestamp < self.vote_end
+    assert self.applications[_protocol] == WHITELISTED
+    used: uint256 = self.votes_used[msg.sender] + _votes
+    assert used <= self.deposits[msg.sender]
+    self.voted += _votes
+    self.votes[_protocol] += _votes
 
 @external
 @view
-def is_whitelisted(_asset: address) -> bool:
-    return self.applications[_asset] == WHITELISTED
+def has_applied(_protocol: address) -> bool:
+    return self.applications[_protocol] > NOTHING
+
+@external
+@view
+def is_whitelisted(_protocol: address) -> bool:
+    return self.applications[_protocol] == WHITELISTED
 
 @external
 def set_whitelist_period(_begin: uint256, _end: uint256):
