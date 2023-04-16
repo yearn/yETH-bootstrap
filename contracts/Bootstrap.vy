@@ -13,12 +13,13 @@ interface Token:
 token: public(immutable(address))
 
 applications: HashMap[address, uint256]
-deposited: uint256
-deposits: HashMap[address, uint256]
-incentives: HashMap[address, HashMap[address, uint256]]
-voted: uint256
-votes_used: HashMap[address, uint256]
-votes: HashMap[address, uint256]
+debt: public(uint256)
+deposited: public(uint256)
+deposits: public(HashMap[address, uint256])
+incentives: public(HashMap[address, HashMap[address, uint256]])
+voted: public(uint256)
+votes_used: public(HashMap[address, uint256])
+votes: public(HashMap[address, uint256])
 
 management: public(address)
 treasury: public(address)
