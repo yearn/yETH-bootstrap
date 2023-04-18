@@ -9,6 +9,7 @@ from vyper.interfaces import ERC20
 
 interface Token:
     def mint(_account: address, _amount: uint256): nonpayable
+    def burn(_account: address, _amount: uint256): nonpayable
 
 token: public(immutable(address))
 
@@ -88,6 +89,11 @@ def vote(_protocol: address, _votes: uint256):
     assert used <= self.deposits[msg.sender]
     self.voted += _votes
     self.votes[_protocol] += _votes
+
+@external
+def repay(_amount: uint256):
+    self.debt -= _amount
+    Token(token).burn(msg.sender, _amount)
 
 @external
 @view
