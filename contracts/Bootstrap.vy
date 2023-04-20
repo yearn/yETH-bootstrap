@@ -16,14 +16,18 @@ token: public(immutable(address))
 applications: HashMap[address, uint256]
 debt: public(uint256)
 deposited: public(uint256)
-deposits: public(HashMap[address, uint256])
-incentives: public(HashMap[address, HashMap[address, uint256]])
+deposits: public(HashMap[address, uint256]) # user => amount deposited
+incentives: public(HashMap[address, HashMap[address, uint256]]) # protocol => incentive => amount
+incentive_depositors: public(HashMap[address, HashMap[address, HashMap[address, uint256]]]) # protocol => incentive => depositor => amount
 voted: public(uint256)
-votes_used: public(HashMap[address, uint256])
-votes: public(HashMap[address, uint256])
+votes_used: public(HashMap[address, uint256]) # user => votes used
+votes: public(HashMap[address, uint256]) # protocol => votes
+winners_list: public(DynArray[address, MAX_WINNERS])
+winners: public(HashMap[address, bool]) # protocol => winner?
 
 management: public(address)
 treasury: public(address)
+pol: public(address)
 
 whitelist_begin: public(uint256)
 whitelist_end: public(uint256)
@@ -37,6 +41,8 @@ vote_end: public(uint256)
 NOTHING: constant(uint256) = 0
 APPLIED: constant(uint256) = 1
 WHITELISTED: constant(uint256) = 2
+POL_SPLIT: constant(uint256) = 10
+MAX_WINNERS: constant(uint256) = 5
 
 @external
 def __init__(_token: address):
@@ -47,29 +53,18 @@ def __init__(_token: address):
 @external
 @payable
 def apply(_protocol: address):
-    assert msg.value == 1_000_000_000_000_000_000
-    assert block.timestamp >= self.whitelist_begin and block.timestamp < self.whitelist_end
-    assert self.applications[_protocol] == NOTHING
-    self.applications[_protocol] = APPLIED
-
-@external
-def whitelist(_protocol: address):
-    assert msg.sender == self.management
-    assert self.applications[_protocol] == APPLIED
-    self.applications[_protocol] = WHITELISTED
-
-@external
-def undo_whitelist(_protocol: address):
-    assert msg.sender == self.management
-    assert self.applications[_protocol] == WHITELISTED
+    assert msg.value == 1_000_000_000_000_000_000 # dev: application fee
+    assert block.timestamp >= self.whitelist_begin and block.timestamp < self.whitelist_end # dev: outside application period
+    assert self.applications[_protocol] == NOTHING # dev: already applied
     self.applications[_protocol] = APPLIED
 
 @external
 def incentivise(_protocol: address, _incentive: address, _amount: uint256):
     assert _amount > 0
-    assert block.timestamp >= self.incentive_begin and block.timestamp < self.incentive_end
-    assert self.applications[_protocol] == WHITELISTED
+    assert block.timestamp >= self.incentive_begin and block.timestamp < self.incentive_end # dev: outside incentive period
+    assert self.applications[_protocol] == WHITELISTED # dev: not whitelisted
     self.incentives[_protocol][_incentive] += _amount
+    self.incentive_depositors[_protocol][_incentive][msg.sender] += _amount
     assert ERC20(_incentive).transferFrom(msg.sender, self, _amount, default_return_value=True)
 
 @external
@@ -96,6 +91,34 @@ def repay(_amount: uint256):
     Token(token).burn(msg.sender, _amount)
 
 @external
+def split():
+    assert msg.sender == self.management or msg.sender == self.treasury
+    amount: uint256 = self.balance
+    assert amount > 0
+    treasury: address = self.treasury
+    pol: address = self.pol
+    assert treasury != empty(address)
+    assert pol != empty(address)
+
+    raw_call(pol, b"", value=amount/10)
+    amount -= amount/10
+    raw_call(treasury, b"", value=amount)
+
+@external
+def claim_incentive(_protocol: address, _incentive: address):
+    assert len(self.winners_list) > 0 # dev: no winners declared
+    assert not self.winners[_protocol] # dev: protocol is not winner
+
+@external
+def refund_incentive(_protocol: address, _incentive: address):
+    assert len(self.winners_list) > 0 # dev: no winners declared
+    assert not self.winners[_protocol] # dev: protocol is winner
+    amount: uint256 = self.incentive_depositors[_protocol][_incentive][msg.sender]
+    assert amount > 0 # dev: nothing to refund
+    self.incentive_depositors[_protocol][_incentive][msg.sender] = 0
+    assert ERC20(_incentive).transfer(msg.sender, amount, default_return_value=True)
+
+@external
 @view
 def has_applied(_protocol: address) -> bool:
     return self.applications[_protocol] > NOTHING
@@ -105,26 +128,69 @@ def has_applied(_protocol: address) -> bool:
 def is_whitelisted(_protocol: address) -> bool:
     return self.applications[_protocol] == WHITELISTED
 
+# MANAGEMENT FUNCTIONS
+
 @external
 def set_whitelist_period(_begin: uint256, _end: uint256):
     assert msg.sender == self.management
+    assert _end > _begin
     self.whitelist_begin = _begin
     self.whitelist_end = _end
 
 @external
 def set_incentive_period(_begin: uint256, _end: uint256):
     assert msg.sender == self.management
+    assert _begin >= self.whitelist_begin
+    assert _end > _begin
     self.incentive_begin = _begin
     self.incentive_end = _end
 
 @external
 def set_deposit_period(_begin: uint256, _end: uint256):
     assert msg.sender == self.management
+    assert _begin >= self.whitelist_begin
+    assert _end > _begin
     self.deposit_begin = _begin
     self.deposit_end = _end
 
 @external
 def set_vote_period(_begin: uint256, _end: uint256):
     assert msg.sender == self.management
+    assert _begin >= self.deposit_begin
+    assert _end > _begin
     self.vote_begin = _begin
     self.vote_end = _end
+
+@external
+def set_treasury(_treasury: address):
+    assert msg.sender == self.management
+    assert self.treasury == empty(address)
+    self.treasury = _treasury
+
+@external
+def set_pol(_pol: address):
+    assert msg.sender == self.management
+    assert self.pol == empty(address)
+    self.pol = _pol
+
+@external
+def whitelist(_protocol: address):
+    assert msg.sender == self.management
+    assert self.applications[_protocol] == APPLIED # dev: has not applied
+    self.applications[_protocol] = WHITELISTED
+
+@external
+def undo_whitelist(_protocol: address):
+    assert msg.sender == self.management
+    assert self.applications[_protocol] == WHITELISTED # dev: not whitelisted
+    self.applications[_protocol] = APPLIED
+
+@external
+def declare_winners(_winners: DynArray[address, MAX_WINNERS]):
+    assert msg.sender == self.management
+    assert block.timestamp >= self.vote_end
+    assert len(self.winners_list) == 0
+    for winner in _winners:
+        assert self.applications[winner] == WHITELISTED
+        self.winners_list.append(winner)
+        self.winners[winner] = True
