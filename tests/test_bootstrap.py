@@ -23,8 +23,12 @@ def token(project, deployer):
     return project.Token.deploy(sender=deployer)
 
 @pytest.fixture
-def bootstrap(project, chain, deployer, token):
-    bootstrap = project.Bootstrap.deploy(token, sender=deployer)
+def staking(project, deployer, token):
+    return project.MockStaking.deploy(token, sender=deployer)
+
+@pytest.fixture
+def bootstrap(project, chain, deployer, token, staking):
+    bootstrap = project.Bootstrap.deploy(token, staking, sender=deployer)
     token.set_minter(bootstrap, sender=deployer)
     ts = (chain.pending_timestamp // WEEK_LENGTH + 1) * WEEK_LENGTH
     bootstrap.set_whitelist_period(ts, ts + WEEK_LENGTH, sender=deployer)

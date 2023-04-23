@@ -11,7 +11,11 @@ interface Token:
     def mint(_account: address, _amount: uint256): nonpayable
     def burn(_account: address, _amount: uint256): nonpayable
 
+interface Staking:
+    def deposit(_assets: uint256) -> uint256: nonpayable
+
 token: public(immutable(address))
+staking: public(immutable(address))
 
 applications: HashMap[address, uint256]
 debt: public(uint256)
@@ -39,6 +43,7 @@ deposit_begin: public(uint256)
 deposit_end: public(uint256)
 vote_begin: public(uint256)
 vote_end: public(uint256)
+lock_end: public(uint256)
 
 NOTHING: constant(uint256) = 0
 APPLIED: constant(uint256) = 1
@@ -48,10 +53,12 @@ MAX_WINNERS: constant(uint256) = 5
 FEE_DIVIDER: constant(uint256) = 100
 
 @external
-def __init__(_token: address):
+def __init__(_token: address, _staking: address):
     token = _token
+    staking = _staking
     self.management = msg.sender
     self.treasury = msg.sender
+    assert ERC20(token).approve(_staking, max_value(uint256), default_return_value=True)
 
 @external
 @payable
@@ -78,6 +85,15 @@ def deposit():
     self.deposited += msg.value
     self.deposits[msg.sender] += msg.value
     Token(token).mint(self, msg.value)
+    Staking(staking).deposit(msg.value)
+
+@external
+@payable
+def claim(_amount: uint256):
+    assert _amount > 0
+    assert block.timestamp >= self.lock_end
+    self.deposits[msg.sender] -= _amount
+    assert ERC20(staking).transfer(msg.sender, _amount, default_return_value=True)
 
 @external
 def vote(_protocol: address, _votes: uint256):
@@ -185,6 +201,11 @@ def set_vote_period(_begin: uint256, _end: uint256):
     assert _end > _begin
     self.vote_begin = _begin
     self.vote_end = _end
+
+@external
+def set_lock_end(_end: uint256):
+    assert msg.sender == self.management
+    self.lock_end = _end
 
 @external
 def set_treasury(_treasury: address):
