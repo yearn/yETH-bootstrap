@@ -13,6 +13,7 @@ interface Token:
 
 token: public(immutable(address))
 management: public(address)
+available: public(uint256)
 debt: public(uint256)
 native_allowance: public(HashMap[address, uint256])
 mint_allowance: public(HashMap[address, uint256])
@@ -30,6 +31,13 @@ def __init__(_token: address):
 @external
 @payable
 def __default__():
+    self.available += msg.value
+    pass
+
+@external
+@payable
+def receive_native():
+    # dont increase debt ceiling here
     pass
 
 @external
@@ -42,7 +50,9 @@ def send_native(_receiver: address, _amount: uint256):
 def mint(_amount: uint256):
     assert _amount > 0
     self.mint_allowance[msg.sender] -= _amount
-    self.debt += _amount
+    debt: uint256 = self.debt + _amount
+    assert debt <= self.available
+    self.debt = debt
     Token(token).mint(self, _amount)
 
 @external
