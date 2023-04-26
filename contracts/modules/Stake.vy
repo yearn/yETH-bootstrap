@@ -5,6 +5,8 @@
 @license Copyright (c) Yearn Finance, 2023 - all rights reserved
 """
 
+from vyper.interfaces import ERC20
+
 interface POL:
     def receive_native(): payable
     def send_native(_receiver: address, _amount: uint256): nonpayable
@@ -22,13 +24,31 @@ def __init__(_pol: address, _treasury: address):
 @external
 @payable
 def __default__():
-    if msg.value > 0:
-        POL(pol).receive_native(value=self.balance)
+    pass
 
 @external
-def to_treasury(_amount: uint256):
+def from_pol(_token: address, _amount: uint256):
     assert msg.sender == self.management
-    POL(pol).send_native(self.treasury, _amount)
+    if _token == empty(address):
+        POL(pol).send_native(self, _amount)
+    else:
+        assert ERC20(_token).transferFrom(pol, self, _amount, default_return_value=True)
+
+@external
+def to_pol(_token: address, _amount: uint256):
+    assert msg.sender == self.management
+    if _token == empty(address):
+        POL(pol).receive_native(value=_amount)
+    else:
+        assert ERC20(_token).transfer(pol, _amount, default_return_value=True)
+
+@external
+def to_treasury(_token: address, _amount: uint256):
+    assert msg.sender == self.management
+    if _token == empty(address):
+        raw_call(self.treasury, b"", value=_amount)
+    else:
+        assert ERC20(_token).transfer(self.treasury, _amount, default_return_value=True)
 
 @external
 def set_management(_management: address):
