@@ -46,7 +46,7 @@ def claim(_vote: bytes32, _incentive: address, _amount: uint256, _proof: DynArra
     assert not self.claimed[_vote][_incentive][_claimer]
 
     # verify proof
-    hash: bytes32 = self._leaf(_claimer, _vote, _incentive, _amount)
+    hash: bytes32 = self._leaf(_claimer, _incentive, _amount)
     for sibling in _proof:
         if convert(hash, uint256) > convert(sibling, uint256):
             hash = keccak256(_abi_encode(hash, sibling))
@@ -60,13 +60,13 @@ def claim(_vote: bytes32, _incentive: address, _amount: uint256, _proof: DynArra
 
 @external
 @pure
-def leaf(_account: address, _vote: bytes32, _incentive: address, _amount: uint256) -> bytes32:
-    return self._leaf(_account, _vote, _incentive, _amount)
+def leaf(_account: address, _incentive: address, _amount: uint256) -> bytes32:
+    return self._leaf(_account, _incentive, _amount)
 
 @internal
 @pure
-def _leaf(_account: address, _vote: bytes32, _incentive: address, _amount: uint256) -> bytes32:
-    return keccak256(_abi_encode(_account, _vote, _incentive, _amount))
+def _leaf(_account: address, _incentive: address, _amount: uint256) -> bytes32:
+    return keccak256(_abi_encode(_account, _incentive, _amount))
 
 @external
 def set_root(_vote: bytes32, _root: bytes32):
