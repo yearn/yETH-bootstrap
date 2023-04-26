@@ -19,9 +19,9 @@ native_allowance: public(HashMap[address, uint256])
 mint_allowance: public(HashMap[address, uint256])
 burn_allowance: public(HashMap[address, uint256])
 
-NATIVE: constant(address) = 0x0000000000000000000000000000000000000001
-MINT: constant(address)   = 0x0000000000000000000000000000000000000002
-BURN: constant(address)   = 0x0000000000000000000000000000000000000003
+NATIVE: constant(address) = 0x0000000000000000000000000000000000000000
+MINT: constant(address)   = 0x0000000000000000000000000000000000000001
+BURN: constant(address)   = 0x0000000000000000000000000000000000000002
 
 @external
 def __init__(_token: address):
