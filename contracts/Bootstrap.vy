@@ -60,6 +60,11 @@ def __init__(_token: address, _staking: address):
 
 @external
 @payable
+def __default__():
+    self._deposit()
+
+@external
+@payable
 def apply(_protocol: address):
     assert msg.value == 1_000_000_000_000_000_000 # dev: application fee
     assert block.timestamp >= self.whitelist_begin and block.timestamp < self.whitelist_end # dev: outside application period
@@ -78,6 +83,11 @@ def incentivise(_protocol: address, _incentive: address, _amount: uint256):
 @external
 @payable
 def deposit():
+    self._deposit()
+
+@internal
+@payable
+def _deposit():
     assert msg.value > 0
     assert block.timestamp >= self.deposit_begin and block.timestamp < self.deposit_end
     self.deposited += msg.value
@@ -86,7 +96,6 @@ def deposit():
     Staking(staking).deposit(msg.value)
 
 @external
-@payable
 def claim(_amount: uint256):
     assert _amount > 0
     assert block.timestamp >= self.lock_end
