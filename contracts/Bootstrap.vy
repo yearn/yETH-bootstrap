@@ -123,26 +123,26 @@ def split():
     raw_call(treasury, b"", value=amount)
 
 @external
-def claim_incentive(_protocol: address, _incentive: address):
+def claim_incentive(_protocol: address, _incentive: address, _claimer: address = msg.sender):
     assert self.winners[_protocol] # dev: protocol is not winner
-    assert not self.incentive_claimed[_protocol][_incentive][msg.sender] # dev: incentive already claimed
+    assert not self.incentive_claimed[_protocol][_incentive][_claimer] # dev: incentive already claimed
     
-    incentive: uint256 = self.incentives[_protocol][_incentive] * self.votes_used[msg.sender] / self.voted
+    incentive: uint256 = self.incentives[_protocol][_incentive] * self.votes_used[_claimer] / self.voted
     assert incentive > 0 # dev: nothing to claim
 
-    self.incentive_claimed[_protocol][_incentive][msg.sender] = True
-    assert ERC20(_incentive).transfer(msg.sender, incentive, default_return_value=True)
+    self.incentive_claimed[_protocol][_incentive][_claimer] = True
+    assert ERC20(_incentive).transfer(_claimer, incentive, default_return_value=True)
 
 @external
-def refund_incentive(_protocol: address, _incentive: address):
+def refund_incentive(_protocol: address, _incentive: address, _depositor: address = msg.sender):
     assert len(self.winners_list) > 0 # dev: no winners declared
     assert not self.winners[_protocol] # dev: protocol is winner
 
-    amount: uint256 = self.incentive_depositors[_protocol][_incentive][msg.sender]
+    amount: uint256 = self.incentive_depositors[_protocol][_incentive][_depositor]
     assert amount > 0 # dev: nothing to refund
 
-    self.incentive_depositors[_protocol][_incentive][msg.sender] = 0
-    assert ERC20(_incentive).transfer(msg.sender, amount, default_return_value=True)
+    self.incentive_depositors[_protocol][_incentive][_depositor] = 0
+    assert ERC20(_incentive).transfer(_depositor, amount, default_return_value=True)
 
 @external
 @view
