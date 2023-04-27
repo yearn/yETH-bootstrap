@@ -1,4 +1,7 @@
 name: yeth-bootstrap
+plugins:
+  - name: vyper
+  - name: hardhat
 ethereum:
   default_network: local
   local:
