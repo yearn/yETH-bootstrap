@@ -18,6 +18,7 @@ debt: public(uint256)
 native_allowance: public(HashMap[address, uint256])
 mint_allowance: public(HashMap[address, uint256])
 burn_allowance: public(HashMap[address, uint256])
+killed: public(bool)
 
 NATIVE: constant(address) = 0x0000000000000000000000000000000000000000
 MINT: constant(address)   = 0x0000000000000000000000000000000000000001
@@ -49,6 +50,7 @@ def send_native(_receiver: address, _amount: uint256):
 @external
 def mint(_amount: uint256):
     assert _amount > 0
+    assert not self.killed
     self.mint_allowance[msg.sender] -= _amount
     debt: uint256 = self.debt + _amount
     assert debt <= self.available
@@ -80,3 +82,8 @@ def approve(_token: address, _spender: address, _amount: uint256):
         self.burn_allowance[_spender] = _amount
     else:
         ERC20(_token).approve(_spender, _amount)
+
+@external
+def kill():
+    assert msg.sender == self.management
+    self.killed = True

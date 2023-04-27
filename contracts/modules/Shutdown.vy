@@ -15,6 +15,7 @@ interface Bootstrap:
 
 interface POL:
     def send_native(_receiver: address, _amount: uint256): nonpayable
+    def killed() -> bool: view
 
 token: public(immutable(address))
 bootstrap: public(immutable(address))
@@ -31,7 +32,7 @@ def __init__(_token: address, _bootstrap: address, _pol: address):
 
 @external
 def redeem(_amount: uint256):
-    assert Pool(self.pool).killed()
+    assert Pool(self.pool).killed() or POL(pol).killed()
     ERC20(token).transferFrom(msg.sender, self, _amount)
     Bootstrap(bootstrap).repay(_amount)
     POL(pol).send_native(msg.sender, _amount)
