@@ -61,7 +61,7 @@ def __init__(_token: address, _staking: address):
 @external
 @payable
 def __default__():
-    self._deposit()
+    self._deposit(msg.sender)
 
 @external
 @payable
@@ -82,25 +82,26 @@ def incentivise(_protocol: address, _incentive: address, _amount: uint256):
 
 @external
 @payable
-def deposit():
-    self._deposit()
+def deposit(_account: address = msg.sender):
+    self._deposit(_account)
 
 @internal
 @payable
-def _deposit():
+def _deposit(_account: address):
     assert msg.value > 0
     assert block.timestamp >= self.deposit_begin and block.timestamp < self.deposit_end
     self.deposited += msg.value
-    self.deposits[msg.sender] += msg.value
+    self.deposits[_account] += msg.value
     Token(token).mint(self, msg.value)
     Staking(staking).deposit(msg.value)
 
 @external
-def claim(_amount: uint256):
+def claim(_amount: uint256, _receiver: address = msg.sender):
     assert _amount > 0
     assert block.timestamp >= self.lock_end
+    self.deposited -= _amount
     self.deposits[msg.sender] -= _amount
-    assert ERC20(staking).transfer(msg.sender, _amount, default_return_value=True)
+    assert ERC20(staking).transfer(_receiver, _amount, default_return_value=True)
 
 @external
 def vote(_protocol: address, _votes: uint256):
