@@ -43,15 +43,12 @@ def deposit(_vote: bytes32, _choice: uint256, _incentive: address, _amount: uint
 def claim(_vote: bytes32, _incentive: address, _amount: uint256, _proof: DynArray[bytes32, MAX_TREE_DEPTH], _claimer: address = msg.sender):
     assert _vote != empty(bytes32)
     assert len(_proof) > 0
-    assert not self.claimed[_vote][_incentive][_claimer]
+    assert not self.claimed[_vote][_incentive][_claimer] # dev: already claimed
 
     # verify proof
     hash: bytes32 = self._leaf(_claimer, _incentive, _amount)
     for sibling in _proof:
-        if convert(hash, uint256) > convert(sibling, uint256):
-            hash = keccak256(_abi_encode(hash, sibling))
-        else:
-            hash = keccak256(_abi_encode(sibling, hash))
+        hash = self._hash_siblings(hash, sibling)
     assert hash == self.roots[_vote]
 
     self.claimed[_vote][_incentive][_claimer] = True
@@ -67,6 +64,19 @@ def leaf(_account: address, _incentive: address, _amount: uint256) -> bytes32:
 @pure
 def _leaf(_account: address, _incentive: address, _amount: uint256) -> bytes32:
     return keccak256(_abi_encode(_account, _incentive, _amount))
+
+@external
+@pure
+def hash_siblings(a: bytes32, b: bytes32) -> bytes32:
+    return self._hash_siblings(a, b)
+
+@internal
+@pure
+def _hash_siblings(a: bytes32, b: bytes32) -> bytes32:
+    if convert(a, uint256) > convert(b, uint256):
+        return keccak256(_abi_encode(a, b))
+    else:
+        return keccak256(_abi_encode(b, a))
 
 @external
 def set_root(_vote: bytes32, _root: bytes32):
