@@ -3,6 +3,21 @@
 @title yETH bootstrap
 @author 0xkorin, Yearn Finance
 @license Copyright (c) Yearn Finance, 2023 - all rights reserved
+@notice 
+    Implements the bootstrap phase as outlined in YIP-72, summarized:
+    Contract defines multiple periods
+        - Whitelist period: LSD protocols apply to be whitelisted by depositing 1 ETH
+        - Deposit period: anyone can deposit ETH, which mints st-yETH 1:1 locked into the contract
+        - Incentive period: anyone is able to incentivise voting for a whitelisted protocol by depositing tokens
+        - Vote period: depositors are able to vote on their preferred whitelisted protocol
+    After the vote period up to 5 protocols are declared as winner.
+    Incentives for winning protocols will be distributed over all voters according to their overall vote weight, 
+    regardless whether they voted for that specific protocol or not.
+    Protocols that do not win will have their incentives refunded.
+    10% of deposited ETH is sent to the POL.
+    90% of deposited ETH is used to buy LSDs and deposit into the newly deployed yETH pool.
+    The minted yETH is used to pay off 90% of the debt in the bootstrap contract.
+    Depositor's st-yETH become withdrawable after a specific time.
 """
 
 from vyper.interfaces import ERC20
