@@ -105,6 +105,7 @@ def deposit(_account: address = msg.sender):
 def _deposit(_account: address):
     assert msg.value > 0
     assert block.timestamp >= self.deposit_begin and block.timestamp < self.deposit_end
+    self.debt += msg.value
     self.deposited += msg.value
     self.deposits[_account] += msg.value
     Token(token).mint(self, msg.value)
