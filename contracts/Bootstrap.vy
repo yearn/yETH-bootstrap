@@ -149,7 +149,14 @@ def split():
     raw_call(treasury, b"", value=amount)
 
 @external
-def claim_incentive(_protocol: address, _incentive: address, _claimer: address = msg.sender):
+@view
+def claimable_incentive(_protocol: address, _incentive: address, _claimer: address) -> uint256:
+    if not self.winners[_protocol] or self.incentive_claimed[_protocol][_incentive][_claimer]:
+        return 0
+    return self.incentives[_protocol][_incentive] * self.votes_used[_claimer] / self.voted
+
+@external
+def claim_incentive(_protocol: address, _incentive: address, _claimer: address = msg.sender) -> uint256:
     assert self.winners[_protocol] # dev: protocol is not winner
     assert not self.incentive_claimed[_protocol][_incentive][_claimer] # dev: incentive already claimed
     
