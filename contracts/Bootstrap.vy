@@ -59,6 +59,60 @@ vote_begin: public(uint256)
 vote_end: public(uint256)
 lock_end: public(uint256)
 
+event Apply:
+    protocol: indexed(address)
+
+event Whitelist:
+    protocol: indexed(address)
+
+event Incentivise:
+    protocol: indexed(address)
+    incentive: indexed(address)
+    depositor: indexed(address)
+    amount: uint256
+
+event Deposit:
+    depositor: indexed(address)
+    receiver: indexed(address)
+    amount: uint256
+
+event Claim:
+    claimer: indexed(address)
+    receiver: indexed(address)
+    amount: uint256
+
+event Vote:
+    voter: indexed(address)
+    protocol: indexed(address)
+    amount: uint256
+
+event Repay:
+    payer: indexed(address)
+    amount: uint256
+
+event Split:
+    amount: uint256
+
+event ClaimIncentive:
+    protocol: indexed(address)
+    incentive: indexed(address)
+    claimer: indexed(address)
+    amount: uint256
+
+event RefundIncentive:
+    protocol: indexed(address)
+    incentive: indexed(address)
+    depositor: indexed(address)
+    amount: uint256
+
+event SetPeriod:
+    period: indexed(uint256)
+    begin: uint256
+    end: uint256
+
+event Winners:
+    winners: DynArray[address, MAX_WINNERS]
+
 NOTHING: constant(uint256) = 0
 APPLIED: constant(uint256) = 1
 WHITELISTED: constant(uint256) = 2
@@ -85,6 +139,7 @@ def apply(_protocol: address):
     assert block.timestamp >= self.whitelist_begin and block.timestamp < self.whitelist_end # dev: outside application period
     assert self.applications[_protocol] == NOTHING # dev: already applied
     self.applications[_protocol] = APPLIED
+    log Apply(_protocol)
 
 @external
 def incentivise(_protocol: address, _incentive: address, _amount: uint256):
@@ -94,6 +149,7 @@ def incentivise(_protocol: address, _incentive: address, _amount: uint256):
     self.incentives[_protocol][_incentive] += _amount
     self.incentive_depositors[_protocol][_incentive][msg.sender] += _amount
     assert ERC20(_incentive).transferFrom(msg.sender, self, _amount, default_return_value=True)
+    log Incentivise(_protocol, _incentive, msg.sender, _amount)
 
 @external
 @payable
@@ -110,6 +166,7 @@ def _deposit(_account: address):
     self.deposits[_account] += msg.value
     Token(token).mint(self, msg.value)
     Staking(staking).deposit(msg.value)
+    log Deposit(msg.sender, _account, msg.value)
 
 @external
 def claim(_amount: uint256, _receiver: address = msg.sender):
@@ -118,6 +175,7 @@ def claim(_amount: uint256, _receiver: address = msg.sender):
     self.deposited -= _amount
     self.deposits[msg.sender] -= _amount
     assert ERC20(staking).transfer(_receiver, _amount, default_return_value=True)
+    log Claim(msg.sender, _receiver, _amount)
 
 @external
 def vote(_protocol: address, _votes: uint256):
@@ -128,11 +186,13 @@ def vote(_protocol: address, _votes: uint256):
     self.voted += _votes
     self.votes[_protocol] += _votes
     self.votes_used[msg.sender] = used
+    log Vote(msg.sender, _protocol, _votes)
 
 @external
 def repay(_amount: uint256):
     self.debt -= _amount
     Token(token).burn(msg.sender, _amount)
+    log Repay(msg.sender, _amount)
 
 @external
 def split():
@@ -144,6 +204,7 @@ def split():
     assert treasury != empty(address)
     assert pol != empty(address)
 
+    log Split(amount)
     raw_call(pol, b"", value=amount/10)
     amount -= amount/10
     raw_call(treasury, b"", value=amount)
@@ -165,9 +226,11 @@ def claim_incentive(_protocol: address, _incentive: address, _claimer: address =
 
     self.incentive_claimed[_protocol][_incentive][_claimer] = True
     assert ERC20(_incentive).transfer(_claimer, incentive, default_return_value=True)
+    log ClaimIncentive(_protocol, _incentive, _claimer, incentive)
+    return incentive
 
 @external
-def refund_incentive(_protocol: address, _incentive: address, _depositor: address = msg.sender):
+def refund_incentive(_protocol: address, _incentive: address, _depositor: address = msg.sender) -> uint256:
     assert len(self.winners_list) > 0 # dev: no winners declared
     assert not self.winners[_protocol] # dev: protocol is winner
 
@@ -176,6 +239,8 @@ def refund_incentive(_protocol: address, _incentive: address, _depositor: addres
 
     self.incentive_depositors[_protocol][_incentive][_depositor] = 0
     assert ERC20(_incentive).transfer(_depositor, amount, default_return_value=True)
+    log RefundIncentive(_protocol, _incentive, _depositor, amount)
+    return amount
 
 @external
 @view
@@ -195,6 +260,7 @@ def set_whitelist_period(_begin: uint256, _end: uint256):
     assert _end > _begin
     self.whitelist_begin = _begin
     self.whitelist_end = _end
+    log SetPeriod(0, _begin,  _end)
 
 @external
 def set_incentive_period(_begin: uint256, _end: uint256):
@@ -203,6 +269,7 @@ def set_incentive_period(_begin: uint256, _end: uint256):
     assert _end > _begin
     self.incentive_begin = _begin
     self.incentive_end = _end
+    log SetPeriod(1, _begin,  _end)
 
 @external
 def set_deposit_period(_begin: uint256, _end: uint256):
@@ -211,6 +278,7 @@ def set_deposit_period(_begin: uint256, _end: uint256):
     assert _end > _begin
     self.deposit_begin = _begin
     self.deposit_end = _end
+    log SetPeriod(2, _begin,  _end)
 
 @external
 def set_vote_period(_begin: uint256, _end: uint256):
@@ -219,11 +287,13 @@ def set_vote_period(_begin: uint256, _end: uint256):
     assert _end > _begin
     self.vote_begin = _begin
     self.vote_end = _end
+    log SetPeriod(3, _begin, _end)
 
 @external
 def set_lock_end(_end: uint256):
     assert msg.sender == self.management
     self.lock_end = _end
+    log SetPeriod(4, 0, _end)
 
 @external
 def set_treasury(_treasury: address):
@@ -242,6 +312,7 @@ def whitelist(_protocol: address):
     assert msg.sender == self.management
     assert self.applications[_protocol] == APPLIED # dev: has not applied
     self.applications[_protocol] = WHITELISTED
+    log Whitelist(_protocol)
 
 @external
 def undo_whitelist(_protocol: address):
@@ -258,3 +329,4 @@ def declare_winners(_winners: DynArray[address, MAX_WINNERS]):
         assert self.applications[winner] == WHITELISTED
         self.winners_list.append(winner)
         self.winners[winner] = True
+    log Winners(_winners)
