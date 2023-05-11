@@ -161,6 +161,7 @@ def deposit(_account: address = msg.sender):
 def _deposit(_account: address):
     assert msg.value > 0
     assert block.timestamp >= self.deposit_begin and block.timestamp < self.deposit_end
+    assert self.lock_end > 0
     self.debt += msg.value
     self.deposited += msg.value
     self.deposits[_account] += msg.value
