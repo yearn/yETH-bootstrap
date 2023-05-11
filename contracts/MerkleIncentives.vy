@@ -8,6 +8,7 @@
 from vyper.interfaces import ERC20
 
 management: public(address)
+pending_management: public(address)
 roots: public(HashMap[bytes32, bytes32]) # vote => claim root
 claimed: public(HashMap[bytes32, HashMap[address, HashMap[address, bool]]]) # vote => incentive => user => claimed?
 
@@ -87,4 +88,10 @@ def set_root(_vote: bytes32, _root: bytes32):
 @external
 def set_management(_management: address):
     assert msg.sender == self.management
-    self.management = _management
+    self.pending_management = _management
+
+@external
+def accept_management():
+    assert msg.sender == self.pending_management
+    self.pending_management = empty(address)
+    self.management = msg.sender

@@ -34,6 +34,7 @@ staking: public(immutable(address))
 treasury: public(immutable(address))
 pol: public(immutable(address))
 management: public(address)
+pending_management: public(address)
 
 applications: HashMap[address, uint256]
 debt: public(uint256)
@@ -314,3 +315,14 @@ def declare_winners(_winners: DynArray[address, MAX_WINNERS]):
         self.winners_list.append(winner)
         self.winners[winner] = True
     log Winners(_winners)
+
+@external
+def set_management(_management: address):
+    assert msg.sender == self.management
+    self.pending_management = _management
+
+@external
+def accept_management():
+    assert msg.sender == self.pending_management
+    self.pending_management = empty(address)
+    self.management = msg.sender
