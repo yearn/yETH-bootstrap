@@ -31,6 +31,9 @@ interface Staking:
 
 token: public(immutable(address))
 staking: public(immutable(address))
+treasury: public(immutable(address))
+pol: public(immutable(address))
+management: public(address)
 
 applications: HashMap[address, uint256]
 debt: public(uint256)
@@ -44,10 +47,6 @@ votes: public(HashMap[address, uint256]) # protocol => votes
 winners_list: public(DynArray[address, MAX_WINNERS])
 winners: public(HashMap[address, bool]) # protocol => winner?
 incentive_claimed: public(HashMap[address, HashMap[address, HashMap[address, bool]]]) # winner => incentive => user => claimed?
-
-management: public(address)
-treasury: public(address)
-pol: public(address)
 
 whitelist_begin: public(uint256)
 whitelist_end: public(uint256)
@@ -120,11 +119,12 @@ POL_SPLIT: constant(uint256) = 10
 MAX_WINNERS: constant(uint256) = 5
 
 @external
-def __init__(_token: address, _staking: address):
+def __init__(_token: address, _staking: address, _treasury: address, _pol: address):
     token = _token
     staking = _staking
+    treasury = _treasury
+    pol = _pol
     self.management = msg.sender
-    self.treasury = msg.sender
     assert ERC20(token).approve(_staking, max_value(uint256), default_return_value=True)
 
 @external
@@ -197,14 +197,9 @@ def repay(_amount: uint256):
 
 @external
 def split():
-    assert msg.sender == self.management or msg.sender == self.treasury
+    assert msg.sender == self.management or msg.sender == treasury
     amount: uint256 = self.balance
     assert amount > 0
-    treasury: address = self.treasury
-    pol: address = self.pol
-    assert treasury != empty(address)
-    assert pol != empty(address)
-
     log Split(amount)
     raw_call(pol, b"", value=amount/10)
     amount -= amount/10
@@ -295,18 +290,6 @@ def set_lock_end(_end: uint256):
     assert msg.sender == self.management
     self.lock_end = _end
     log SetPeriod(4, 0, _end)
-
-@external
-def set_treasury(_treasury: address):
-    assert msg.sender == self.management
-    assert self.treasury == empty(address)
-    self.treasury = _treasury
-
-@external
-def set_pol(_pol: address):
-    assert msg.sender == self.management
-    assert self.pol == empty(address)
-    self.pol = _pol
 
 @external
 def whitelist(_protocol: address):
