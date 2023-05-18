@@ -161,7 +161,7 @@ def deposit(_account: address = msg.sender):
 @payable
 def _deposit(_account: address):
     assert msg.value > 0
-    assert block.timestamp >= self.deposit_begin and block.timestamp < self.deposit_end
+    assert block.timestamp >= self.deposit_begin and block.timestamp < self.deposit_end # dev: outside deposit period
     assert self.lock_end > 0
     self.debt += msg.value
     self.deposited += msg.value
@@ -180,15 +180,23 @@ def claim(_amount: uint256, _receiver: address = msg.sender):
     log Claim(msg.sender, _receiver, _amount)
 
 @external
-def vote(_protocol: address, _votes: uint256):
-    assert block.timestamp >= self.vote_begin and block.timestamp < self.vote_end
-    assert self.applications[_protocol] == WHITELISTED
-    used: uint256 = self.votes_used[msg.sender] + _votes
-    assert used <= self.deposits[msg.sender]
-    self.voted += _votes
-    self.votes[_protocol] += _votes
+def vote(_protocols: DynArray[address, 32], _votes: DynArray[uint256, 32]):
+    assert len(_protocols) == len(_votes)
+    assert block.timestamp >= self.vote_begin and block.timestamp < self.vote_end # dev: outside vote period
+    used: uint256 = 0
+    for i in range(32):
+        if i == len(_protocols):
+            break
+        protocol: address = _protocols[i]
+        votes: uint256 = _votes[i]
+        assert self.applications[protocol] == WHITELISTED # dev: protocol not whitelisted
+        used += votes
+        self.votes[protocol] += votes
+        log Vote(msg.sender, protocol, votes)
+    self.voted += used
+    used += self.votes_used[msg.sender]
+    assert used <= self.deposits[msg.sender] # dev: too many votes
     self.votes_used[msg.sender] = used
-    log Vote(msg.sender, _protocol, _votes)
 
 @external
 def repay(_amount: uint256):
