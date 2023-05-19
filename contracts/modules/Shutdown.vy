@@ -29,6 +29,7 @@ def __init__(_token: address, _bootstrap: address, _pol: address):
     bootstrap = _bootstrap
     pol = _pol
     self.management = msg.sender
+    assert ERC20(_token).approve(_bootstrap, max_value(uint256), default_return_value=True)
 
 @external
 def redeem(_amount: uint256):

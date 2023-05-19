@@ -209,7 +209,8 @@ def vote(_protocols: DynArray[address, 32], _votes: DynArray[uint256, 32]):
 @external
 def repay(_amount: uint256):
     self.debt -= _amount
-    Token(token).burn(msg.sender, _amount)
+    assert ERC20(token).transferFrom(msg.sender, self, _amount, default_return_value=True)
+    Token(token).burn(self, _amount)
     log Repay(msg.sender, _amount)
 
 @external
@@ -264,6 +265,11 @@ def has_applied(_protocol: address) -> bool:
 @view
 def is_whitelisted(_protocol: address) -> bool:
     return self.applications[_protocol] == WHITELISTED
+
+@external
+@view
+def num_winners() -> uint256:
+    return len(self.winners_list)
 
 # MANAGEMENT FUNCTIONS
 
@@ -329,6 +335,7 @@ def declare_winners(_winners: DynArray[address, MAX_WINNERS]):
     assert len(self.winners_list) == 0
     for winner in _winners:
         assert self.applications[winner] == WHITELISTED
+        assert not self.winners[winner]
         self.winners_list.append(winner)
         self.winners[winner] = True
     log Winners(_winners)
