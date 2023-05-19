@@ -8,7 +8,7 @@
     Contract defines multiple periods
         - Whitelist period: LSD protocols apply to be whitelisted by depositing 1 ETH
         - Deposit period: anyone can deposit ETH, which mints st-yETH 1:1 locked into the contract
-        - Incentive period: anyone is able to incentivise voting for a whitelisted protocol by depositing tokens
+        - Incentive period: anyone is able to incentivize voting for a whitelisted protocol by depositing tokens
         - Vote period: depositors are able to vote on their preferred whitelisted protocol
     After the vote period up to 5 protocols are declared as winner.
     Incentives for winning protocols will be distributed over all voters according to their overall vote weight, 
@@ -65,7 +65,7 @@ event Apply:
 event Whitelist:
     protocol: indexed(address)
 
-event Incentivise:
+event Incentivize:
     protocol: indexed(address)
     incentive: indexed(address)
     depositor: indexed(address)
@@ -143,14 +143,14 @@ def apply(_protocol: address):
     log Apply(_protocol)
 
 @external
-def incentivise(_protocol: address, _incentive: address, _amount: uint256):
+def incentivize(_protocol: address, _incentive: address, _amount: uint256):
     assert _amount > 0
     assert block.timestamp >= self.incentive_begin and block.timestamp < self.incentive_end # dev: outside incentive period
     assert self.applications[_protocol] == WHITELISTED # dev: not whitelisted
     self.incentives[_protocol][_incentive] += _amount
     self.incentive_depositors[_protocol][_incentive][msg.sender] += _amount
     assert ERC20(_incentive).transferFrom(msg.sender, self, _amount, default_return_value=True)
-    log Incentivise(_protocol, _incentive, msg.sender, _amount)
+    log Incentivize(_protocol, _incentive, msg.sender, _amount)
 
 @external
 @payable
