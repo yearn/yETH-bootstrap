@@ -180,6 +180,14 @@ def claim(_amount: uint256, _receiver: address = msg.sender):
     log Claim(msg.sender, _receiver, _amount)
 
 @external
+@view
+def votes_available(_account: address) -> uint256:
+    if block.timestamp < self.vote_begin or block.timestamp >= self.vote_end:
+        return 0
+
+    return self.deposits[_account] - self.votes_used[_account]
+
+@external
 def vote(_protocols: DynArray[address, 32], _votes: DynArray[uint256, 32]):
     assert len(_protocols) == len(_votes)
     assert block.timestamp >= self.vote_begin and block.timestamp < self.vote_end # dev: outside vote period
@@ -297,6 +305,7 @@ def set_vote_period(_begin: uint256, _end: uint256):
 @external
 def set_lock_end(_end: uint256):
     assert msg.sender == self.management
+    assert _end >= self.vote_end
     self.lock_end = _end
     log SetPeriod(4, 0, _end)
 
