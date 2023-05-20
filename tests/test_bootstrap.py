@@ -373,7 +373,7 @@ def test_declare_early(project, chain, deployer, alice, bootstrap):
 
     chain.pending_timestamp += 3 * WEEK_LENGTH
     with ape.reverts():
-        assert bootstrap.declare_winners([protocol], sender=deployer)
+        bootstrap.declare_winners([protocol], sender=deployer)
 
 def test_declare_multiple(project, chain, deployer, alice, bootstrap):
     protocol1 = project.MockToken.deploy(sender=deployer)
@@ -386,9 +386,9 @@ def test_declare_multiple(project, chain, deployer, alice, bootstrap):
     bootstrap.whitelist(protocol2, sender=deployer)
 
     chain.pending_timestamp += 4 * WEEK_LENGTH
-    assert bootstrap.declare_winners([protocol1], sender=deployer)
+    bootstrap.declare_winners([protocol1], sender=deployer)
     with ape.reverts():
-        assert bootstrap.declare_winners([protocol2], sender=deployer)
+        bootstrap.declare_winners([protocol2], sender=deployer)
 
 def test_declare_duplicate(project, chain, deployer, alice, bootstrap):
     protocol = project.MockToken.deploy(sender=deployer)
@@ -399,7 +399,7 @@ def test_declare_duplicate(project, chain, deployer, alice, bootstrap):
 
     chain.pending_timestamp += 4 * WEEK_LENGTH
     with ape.reverts():
-        assert bootstrap.declare_winners([protocol, protocol], sender=deployer)
+        bootstrap.declare_winners([protocol, protocol], sender=deployer)
 
 def test_declare(project, chain, deployer, alice, bootstrap):
     protocol = project.MockToken.deploy(sender=deployer)
@@ -411,7 +411,7 @@ def test_declare(project, chain, deployer, alice, bootstrap):
     chain.pending_timestamp += 4 * WEEK_LENGTH
     assert bootstrap.num_winners() == 0
     assert not bootstrap.winners(protocol)
-    assert bootstrap.declare_winners([protocol], sender=deployer)
+    bootstrap.declare_winners([protocol], sender=deployer)
     assert bootstrap.num_winners() == 1
     assert bootstrap.winners(protocol)
     assert bootstrap.winners_list(0) == protocol
@@ -427,10 +427,124 @@ def test_declare_many(project, chain, deployer, alice, bootstrap):
     bootstrap.whitelist(protocol2, sender=deployer)
 
     chain.pending_timestamp += 4 * WEEK_LENGTH
-    assert bootstrap.declare_winners([protocol1, protocol2], sender=deployer)
+    bootstrap.declare_winners([protocol1, protocol2], sender=deployer)
     assert bootstrap.num_winners() == 2
     assert bootstrap.winners(protocol1)
     assert bootstrap.winners(protocol2)
     assert bootstrap.winners_list(0) == protocol1
     assert bootstrap.winners_list(1) == protocol2
 
+def test_claim_incentive_loser(project, chain, deployer, alice, bob, bootstrap):
+    protocol1 = project.MockToken.deploy(sender=deployer)
+    protocol2 = project.MockToken.deploy(sender=deployer)
+    incentive = project.MockToken.deploy(sender=deployer)
+    
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.apply(protocol1, value=ONE, sender=alice)
+    bootstrap.apply(protocol2, value=ONE, sender=alice)
+    bootstrap.whitelist(protocol1, sender=deployer)
+    bootstrap.whitelist(protocol2, sender=deployer)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    incentive.approve(bootstrap, MAX, sender=deployer)
+    incentive.mint(deployer, ONE, sender=deployer)
+    bootstrap.incentivize(protocol1, incentive, ONE, sender=deployer)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    alice.transfer(bootstrap, ONE)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.vote([protocol1], [ONE], sender=alice)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.declare_winners([protocol2], sender=deployer)
+
+    with ape.reverts(dev_message='dev: protocol is not winner'):
+        bootstrap.claim_incentive(protocol1, incentive, alice, sender=bob)
+
+def test_claim_incentive_not_voted(project, chain, deployer, alice, bob, bootstrap):
+    protocol = project.MockToken.deploy(sender=deployer)
+    incentive = project.MockToken.deploy(sender=deployer)
+    
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.apply(protocol, value=ONE, sender=alice)
+    bootstrap.whitelist(protocol, sender=deployer)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    incentive.approve(bootstrap, MAX, sender=deployer)
+    incentive.mint(deployer, ONE, sender=deployer)
+    bootstrap.incentivize(protocol, incentive, ONE, sender=deployer)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    alice.transfer(bootstrap, ONE)
+    bob.transfer(bootstrap, ONE)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.vote([protocol], [ONE], sender=bob)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.declare_winners([protocol], sender=deployer)
+    
+    with ape.reverts(dev_message='dev: nothing to claim'):
+        bootstrap.claim_incentive(protocol, incentive, alice, sender=bob)
+
+def test_claim_incentive(project, chain, deployer, alice, bob, bootstrap):
+    protocol = project.MockToken.deploy(sender=deployer)
+    incentive = project.MockToken.deploy(sender=deployer)
+    
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.apply(protocol, value=ONE, sender=alice)
+    bootstrap.whitelist(protocol, sender=deployer)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    incentive.approve(bootstrap, MAX, sender=deployer)
+    incentive.mint(deployer, 6 * ONE, sender=deployer)
+    bootstrap.incentivize(protocol, incentive, 6 * ONE, sender=deployer)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    alice.transfer(bootstrap, ONE)
+    bob.transfer(bootstrap, 2 * ONE)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.vote([protocol], [ONE], sender=alice)
+    bootstrap.vote([protocol], [2 * ONE], sender=bob)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.declare_winners([protocol], sender=deployer)
+    
+    assert not bootstrap.incentive_claimed(protocol, incentive, alice)
+    assert bootstrap.claimable_incentive(protocol, incentive, alice) == 2 * ONE
+    assert incentive.balanceOf(alice) == 0
+    bootstrap.claim_incentive(protocol, incentive, alice, sender=bob)
+    assert bootstrap.incentive_claimed(protocol, incentive, alice)
+    assert bootstrap.claimable_incentive(protocol, incentive, alice) == 0
+    assert incentive.balanceOf(alice) == 2 * ONE
+
+def test_claim_incentive_other_vote(project, chain, deployer, alice, bob, bootstrap):
+    protocol1 = project.MockToken.deploy(sender=deployer)
+    protocol2 = project.MockToken.deploy(sender=deployer)
+    incentive = project.MockToken.deploy(sender=deployer)
+    
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.apply(protocol1, value=ONE, sender=alice)
+    bootstrap.apply(protocol2, value=ONE, sender=alice)
+    bootstrap.whitelist(protocol1, sender=deployer)
+    bootstrap.whitelist(protocol2, sender=deployer)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    incentive.approve(bootstrap, MAX, sender=deployer)
+    incentive.mint(deployer, ONE, sender=deployer)
+    bootstrap.incentivize(protocol1, incentive, ONE, sender=deployer)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    alice.transfer(bootstrap, ONE)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.vote([protocol2], [ONE], sender=alice)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.declare_winners([protocol1, protocol2], sender=deployer)
+    
+    assert bootstrap.claimable_incentive(protocol1, incentive, alice) == ONE
+    bootstrap.claim_incentive(protocol1, incentive, alice, sender=bob)
+    assert incentive.balanceOf(alice) == ONE
