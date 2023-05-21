@@ -13,7 +13,9 @@ interface POL:
 
 pol: public(immutable(address))
 management: public(address)
+pending_management: public(address)
 treasury: public(address)
+pending_treasury: public(address)
 
 @external
 def __init__(_pol: address, _treasury: address):
@@ -53,9 +55,21 @@ def to_treasury(_token: address, _amount: uint256):
 @external
 def set_management(_management: address):
     assert msg.sender == self.management
-    self.management = _management
+    self.pending_management = _management
+
+@external
+def accept_management():
+    assert msg.sender == self.pending_management
+    self.pending_management = empty(address)
+    self.management = msg.sender
 
 @external
 def set_treasury(_treasury: address):
     assert msg.sender == self.treasury
-    self.treasury = _treasury
+    self.pending_treasury = _treasury
+
+@external
+def accept_treasury():
+    assert msg.sender == self.pending_treasury
+    self.pending_treasury = empty(address)
+    self.treasury = msg.sender

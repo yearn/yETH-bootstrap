@@ -44,6 +44,7 @@ interface YVault:
 token: public(immutable(address))
 pol: public(immutable(address))
 management: public(address)
+pending_management: public(address)
 pool: public(address)
 gauge: public(address)
 convex_booster: public(address)
@@ -90,7 +91,13 @@ def to_pol(_token: address, _amount: uint256):
 @external
 def set_management(_management: address):
     assert msg.sender == self.management
-    self.management = _management
+    self.pending_management = _management
+
+@external
+def accept_management():
+    assert msg.sender == self.pending_management
+    self.pending_management = empty(address)
+    self.management = msg.sender
 
 # CURVE POOL FUNCTIONS
 
