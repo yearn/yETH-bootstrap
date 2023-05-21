@@ -121,6 +121,13 @@ MAX_WINNERS: constant(uint256) = 5
 
 @external
 def __init__(_token: address, _staking: address, _treasury: address, _pol: address):
+    """
+    @notice Constructor
+    @param _token yETH token address
+    @param _staking st-yETH token address
+    @param _treasury Treasury address
+    @param _pol POL address
+    """
     token = _token
     staking = _staking
     treasury = _treasury
@@ -131,11 +138,20 @@ def __init__(_token: address, _staking: address, _treasury: address, _pol: addre
 @external
 @payable
 def __default__():
+    """
+    @notice Send ETH in exchange for 1:1 locked st-yETH
+    """
     self._deposit(msg.sender)
 
 @external
 @payable
 def apply(_protocol: address):
+    """
+    @notice
+        As a LSD protocol apply to be whitelisted for potential inclusion into the yETH pool.
+        Requires an application fee of 1 ETH to be sent along with the call
+    @param _protocol The LSD protocol token address
+    """
     assert msg.value == 1_000_000_000_000_000_000 # dev: application fee
     assert block.timestamp >= self.whitelist_begin and block.timestamp < self.whitelist_end # dev: outside application period
     assert self.applications[_protocol] == NOTHING # dev: already applied
@@ -144,6 +160,14 @@ def apply(_protocol: address):
 
 @external
 def incentivize(_protocol: address, _incentive: address, _amount: uint256):
+    """
+    @notice
+        Incentivize depositors to vote on a specific protocol.
+        Deposited incentives are refunded if the protocol does not receive sufficient votes to be included in the yETH pool
+    @param _protocol The LSD protocol address
+    @param _incentive The incentive token address
+    @param _amount The amount of tokens to deposit as incentive
+    """
     assert _amount > 0
     assert block.timestamp >= self.incentive_begin and block.timestamp < self.incentive_end # dev: outside incentive period
     assert self.applications[_protocol] == WHITELISTED # dev: not whitelisted
@@ -155,11 +179,19 @@ def incentivize(_protocol: address, _incentive: address, _amount: uint256):
 @external
 @payable
 def deposit(_account: address = msg.sender):
+    """
+    @notice Deposit ETH in exchange for 1:1 locked st-yETH
+    @param _account Deposit on behalf of this account
+    """
     self._deposit(_account)
 
 @internal
 @payable
 def _deposit(_account: address):
+    """
+    @notice Deposit ETH in exchange for 1:1 locked st-yETH
+    @param _account Deposit on behalf of this account
+    """
     assert msg.value > 0
     assert block.timestamp >= self.deposit_begin and block.timestamp < self.deposit_end # dev: outside deposit period
     assert self.lock_end > 0
@@ -172,6 +204,11 @@ def _deposit(_account: address):
 
 @external
 def claim(_amount: uint256, _receiver: address = msg.sender):
+    """
+    @notice Claim st-yETH once the lock has expired
+    @param _amount Amount of tokens to claim
+    @param _receiver Account to transfer the tokens to
+    """
     assert _amount > 0
     assert block.timestamp >= self.lock_end
     self.deposited -= _amount
@@ -182,6 +219,11 @@ def claim(_amount: uint256, _receiver: address = msg.sender):
 @external
 @view
 def votes_available(_account: address) -> uint256:
+    """
+    @notice Get the amount of available votes for a specific account
+    @param _account The account to query for
+    @return Amount of available votes
+    """
     if block.timestamp < self.vote_begin or block.timestamp >= self.vote_end:
         return 0
 
@@ -189,6 +231,11 @@ def votes_available(_account: address) -> uint256:
 
 @external
 def vote(_protocols: DynArray[address, 32], _votes: DynArray[uint256, 32]):
+    """
+    @notice Vote for whitelisted protocols to be included into the pool
+    @param _protocols Protocols to vote for
+    @param _votes Amount of votes to allocate for each protocol
+    """
     assert len(_protocols) == len(_votes)
     assert block.timestamp >= self.vote_begin and block.timestamp < self.vote_end # dev: outside vote period
     used: uint256 = 0
@@ -208,6 +255,10 @@ def vote(_protocols: DynArray[address, 32], _votes: DynArray[uint256, 32]):
 
 @external
 def repay(_amount: uint256):
+    """
+    @notice Repay yETH debt by burning it
+    @param _amount Amount of debt to repay
+    """
     self.debt -= _amount
     assert ERC20(token).transferFrom(msg.sender, self, _amount, default_return_value=True)
     Token(token).burn(self, _amount)
@@ -215,6 +266,9 @@ def repay(_amount: uint256):
 
 @external
 def split():
+    """
+    @notice Split deposited ETH 9:1 between treasury and POL
+    """
     assert msg.sender == self.management or msg.sender == treasury
     amount: uint256 = self.balance
     assert amount > 0
@@ -226,12 +280,26 @@ def split():
 @external
 @view
 def claimable_incentive(_protocol: address, _incentive: address, _claimer: address) -> uint256:
+    """
+    @notice Get the amount of claimable incentives
+    @param _protocol Address of the LSD protocol to claim incentives for
+    @param _incentive Incentive token to claim
+    @param _claimer Account to query for
+    @return Amount of claimable incentive tokens
+    """
     if not self.winners[_protocol] or self.incentive_claimed[_protocol][_incentive][_claimer]:
         return 0
     return self.incentives[_protocol][_incentive] * self.votes_used[_claimer] / self.voted
 
 @external
 def claim_incentive(_protocol: address, _incentive: address, _claimer: address = msg.sender) -> uint256:
+    """
+    @notice Claim a specific incentive
+    @param _protocol Address of the LSD protocol to claim incentives for
+    @param _incentive Incentive token to claim
+    @param _claimer Account to claim for
+    @return Amount of incentive tokens claimed
+    """
     assert self.winners[_protocol] # dev: protocol is not winner
     assert not self.incentive_claimed[_protocol][_incentive][_claimer] # dev: incentive already claimed
     
@@ -245,6 +313,13 @@ def claim_incentive(_protocol: address, _incentive: address, _claimer: address =
 
 @external
 def refund_incentive(_protocol: address, _incentive: address, _depositor: address = msg.sender) -> uint256:
+    """
+    @notice Refund incentive for protocols that did not win
+    @param _protocol Address of the LSD protocol to refund incentives for
+    @param _incentive Incentive token to refund
+    @param _depositor Account that deposited the incentive
+    @return Amount of incentive tokens refunded
+    """
     assert len(self.winners_list) > 0 # dev: no winners declared
     assert not self.winners[_protocol] # dev: protocol is winner
 
@@ -259,22 +334,41 @@ def refund_incentive(_protocol: address, _incentive: address, _depositor: addres
 @external
 @view
 def has_applied(_protocol: address) -> bool:
+    """
+    @notice Check whether the LSD protocol has applied to be whitelisted
+    @param _protocol Address of the LSD protocol to query for
+    @return True if the protocol has applied, False if it has not yet applied
+    """
     return self.applications[_protocol] > NOTHING
 
 @external
 @view
 def is_whitelisted(_protocol: address) -> bool:
+    """
+    @notice Check whether the LSD protocol is whitelisted
+    @param _protocol Address of the LSD protocol to query for
+    @return True if the protocol is whitelisted, False if it has not been whitelisted
+    """
     return self.applications[_protocol] == WHITELISTED
 
 @external
 @view
 def num_winners() -> uint256:
+    """
+    @notice Get the number of declared winners
+    @return Number of declared winners
+    """
     return len(self.winners_list)
 
 # MANAGEMENT FUNCTIONS
 
 @external
 def set_whitelist_period(_begin: uint256, _end: uint256):
+    """
+    @notice Set the period during which protocols can apply to be whitelisted
+    @param _begin Timestamp of the beginning of the period
+    @param _end Timestamp of the end of the period
+    """
     assert msg.sender == self.management
     assert _end > _begin
     self.whitelist_begin = _begin
@@ -283,6 +377,12 @@ def set_whitelist_period(_begin: uint256, _end: uint256):
 
 @external
 def set_incentive_period(_begin: uint256, _end: uint256):
+    """
+    @notice Set the period during which incentives can be deposited
+    @dev Not allowed to start before the whitelist period
+    @param _begin Timestamp of the beginning of the period
+    @param _end Timestamp of the end of the period
+    """
     assert msg.sender == self.management
     assert _begin >= self.whitelist_begin
     assert _end > _begin
@@ -292,6 +392,12 @@ def set_incentive_period(_begin: uint256, _end: uint256):
 
 @external
 def set_deposit_period(_begin: uint256, _end: uint256):
+    """
+    @notice Set the period during which users can deposit ETH for st-yETH
+    @dev Not allowed to start before the whitelist period
+    @param _begin Timestamp of the beginning of the period
+    @param _end Timestamp of the end of the period
+    """
     assert msg.sender == self.management
     assert _begin >= self.whitelist_begin
     assert _end > _begin
@@ -301,6 +407,12 @@ def set_deposit_period(_begin: uint256, _end: uint256):
 
 @external
 def set_vote_period(_begin: uint256, _end: uint256):
+    """
+    @notice Set the period during which depositors can vote for protocols
+    @dev Not allowed to start before the deposit period
+    @param _begin Timestamp of the beginning of the period
+    @param _end Timestamp of the end of the period
+    """
     assert msg.sender == self.management
     assert _begin >= self.deposit_begin
     assert _end > _begin
@@ -310,6 +422,11 @@ def set_vote_period(_begin: uint256, _end: uint256):
 
 @external
 def set_lock_end(_end: uint256):
+    """
+    @notice Set the time the st-yETH lock ends
+    @dev Not allowed to be before the end of the vote period
+    @param _end Timestamp of the end of the lock
+    """
     assert msg.sender == self.management
     assert _end >= self.vote_end
     self.lock_end = _end
@@ -317,6 +434,10 @@ def set_lock_end(_end: uint256):
 
 @external
 def whitelist(_protocol: address):
+    """
+    @notice Whitelist a protocol 
+    @param _protocol Address of the LSD protocol
+    """
     assert msg.sender == self.management
     assert self.applications[_protocol] == APPLIED # dev: has not applied
     self.applications[_protocol] = WHITELISTED
@@ -324,12 +445,20 @@ def whitelist(_protocol: address):
 
 @external
 def undo_whitelist(_protocol: address):
+    """
+    @notice Undo a protocol whitelist. Should only be used in emergencies
+    @param _protocol Address of the LSD protocol
+    """
     assert msg.sender == self.management
     assert self.applications[_protocol] == WHITELISTED # dev: not whitelisted
     self.applications[_protocol] = APPLIED
 
 @external
 def declare_winners(_winners: DynArray[address, MAX_WINNERS]):
+    """
+    @notice Declare the winners of the vote
+    @param _winners Addresses of the LSD protocols
+    """
     assert msg.sender == self.management
     assert block.timestamp >= self.vote_end
     assert len(self.winners_list) == 0
@@ -342,11 +471,22 @@ def declare_winners(_winners: DynArray[address, MAX_WINNERS]):
 
 @external
 def set_management(_management: address):
+    """
+    @notice 
+        Set the pending management address.
+        Needs to be accepted by that account separately to transfer management over
+    @param _management New pending management address
+    """
     assert msg.sender == self.management
     self.pending_management = _management
 
 @external
 def accept_management():
+    """
+    @notice 
+        Accept management role.
+        Can only be called by account previously marked as pending management by current management
+    """
     assert msg.sender == self.pending_management
     self.pending_management = empty(address)
     self.management = msg.sender
