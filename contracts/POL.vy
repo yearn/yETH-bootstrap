@@ -13,6 +13,7 @@ interface Token:
 
 token: public(immutable(address))
 management: public(address)
+pending_management: public(address)
 available: public(uint256)
 debt: public(uint256)
 native_allowance: public(HashMap[address, uint256])
@@ -69,7 +70,15 @@ def burn(_amount: uint256):
 @external
 def set_management(_management: address):
     assert msg.sender == self.management
-    self.management = _management
+    self.pending_management = _management
+    log PendingManagement(_management)
+
+@external
+def accept_management():
+    assert msg.sender == self.pending_management
+    self.pending_management = empty(address)
+    self.management = msg.sender
+    log SetManagement(msg.sender)
 
 @external
 def approve(_token: address, _spender: address, _amount: uint256):
