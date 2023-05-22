@@ -113,6 +113,12 @@ event SetPeriod:
 event Winners:
     winners: DynArray[address, MAX_WINNERS]
 
+event PendingManagement:
+    management: indexed(address)
+
+event SetManagement:
+    management: indexed(address)
+
 NOTHING: constant(uint256) = 0
 APPLIED: constant(uint256) = 1
 WHITELISTED: constant(uint256) = 2
@@ -479,6 +485,7 @@ def set_management(_management: address):
     """
     assert msg.sender == self.management
     self.pending_management = _management
+    log PendingManagement(_management)
 
 @external
 def accept_management():
@@ -490,3 +497,4 @@ def accept_management():
     assert msg.sender == self.pending_management
     self.pending_management = empty(address)
     self.management = msg.sender
+    log SetManagement(msg.sender)

@@ -25,6 +25,27 @@ NATIVE: constant(address) = 0x0000000000000000000000000000000000000000
 MINT: constant(address)   = 0x0000000000000000000000000000000000000001
 BURN: constant(address)   = 0x0000000000000000000000000000000000000002
 
+event Mint:
+    account: indexed(address)
+    amount: uint256
+
+event Burn:
+    account: indexed(address)
+    amount: uint256
+
+event Approve:
+    token: indexed(address)
+    spender: indexed(address)
+    amount: uint256
+
+event PendingManagement:
+    management: indexed(address)
+
+event SetManagement:
+    management: indexed(address)
+
+event Kill: pass
+
 @external
 def __init__(_token: address):
     token = _token
@@ -57,6 +78,7 @@ def mint(_amount: uint256):
     assert debt <= self.available
     self.debt = debt
     Token(token).mint(self, _amount)
+    log Mint(msg.sender, _amount)
 
 @external
 def burn(_amount: uint256):
@@ -64,6 +86,7 @@ def burn(_amount: uint256):
     self.burn_allowance[msg.sender] -= _amount
     self.debt -= _amount
     Token(token).burn(self, _amount)
+    log Burn(msg.sender, _amount)
 
 # MANAGEMENT FUNCTIONS
 
@@ -82,6 +105,42 @@ def accept_management():
 
 @external
 def approve(_token: address, _spender: address, _amount: uint256):
+    self._approve(_token, _spender, _amount)
+
+@external
+def increase_allowance(_token: address, _spender: address, _amount: uint256):
+    allowance: uint256 = 0
+    if _token == NATIVE:
+        allowance = self.native_allowance[_spender]
+    elif _token == MINT:
+        allowance = self.mint_allowance[_spender]
+    elif _token == BURN:
+        allowance = self.burn_allowance[_spender]
+    else:
+        allowance = ERC20(_token).allowance(self, _spender)
+
+    self._approve(_token, _spender, allowance + _amount)
+
+@external
+def decrease_allowance(_token: address, _spender: address, _amount: uint256):
+    allowance: uint256 = 0
+    if _token == NATIVE:
+        allowance = self.native_allowance[_spender]
+    elif _token == MINT:
+        allowance = self.mint_allowance[_spender]
+    elif _token == BURN:
+        allowance = self.burn_allowance[_spender]
+    else:
+        allowance = ERC20(_token).allowance(self, _spender)
+
+    if _amount > allowance:
+        allowance = 0
+    else:
+        allowance -= _amount
+    self._approve(_token, _spender, allowance)
+
+@internal
+def _approve(_token: address, _spender: address, _amount: uint256):
     assert msg.sender == self.management
     if _token == NATIVE:
         self.native_allowance[_spender] = _amount
@@ -91,8 +150,10 @@ def approve(_token: address, _spender: address, _amount: uint256):
         self.burn_allowance[_spender] = _amount
     else:
         ERC20(_token).approve(_spender, _amount)
+    log Approve(_token, _spender, _amount)
 
 @external
 def kill():
     assert msg.sender == self.management
     self.killed = True
+    log Kill()

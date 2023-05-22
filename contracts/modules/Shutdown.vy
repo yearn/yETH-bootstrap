@@ -23,6 +23,10 @@ pol: public(immutable(address))
 pool: public(address)
 management: public(address)
 
+event Redeem:
+    account: indexed(address)
+    amount: uint256
+
 @external
 def __init__(_token: address, _bootstrap: address, _pol: address):
     token = _token
@@ -32,11 +36,12 @@ def __init__(_token: address, _bootstrap: address, _pol: address):
     assert ERC20(_token).approve(_bootstrap, max_value(uint256), default_return_value=True)
 
 @external
-def redeem(_amount: uint256):
+def redeem(_amount: uint256, _receiver: address = msg.sender):
     assert Pool(self.pool).killed() or POL(pol).killed()
     ERC20(token).transferFrom(msg.sender, self, _amount)
     Bootstrap(bootstrap).repay(_amount)
-    POL(pol).send_native(msg.sender, _amount)
+    POL(pol).send_native(_receiver, _amount)
+    log Redeem(msg.sender, _amount)
 
 @external
 def set_pool(_pool: address):

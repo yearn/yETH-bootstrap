@@ -25,6 +25,16 @@ event Claim:
     incentive: indexed(address)
     amount: uint256
 
+event SetRoot:
+    vote: bytes32
+    root: bytes32
+
+event PendingManagement:
+    management: indexed(address)
+
+event SetManagement:
+    management: indexed(address)
+
 MAX_TREE_DEPTH: constant(uint256) = 32
 
 @external
@@ -84,14 +94,17 @@ def set_root(_vote: bytes32, _root: bytes32):
     assert msg.sender == self.management
     assert self.roots[_vote] == empty(bytes32) or _root == empty(bytes32)
     self.roots[_vote] = _root
+    log SetRoot(_vote, _root)
 
 @external
 def set_management(_management: address):
     assert msg.sender == self.management
     self.pending_management = _management
+    log PendingManagement(_management)
 
 @external
 def accept_management():
     assert msg.sender == self.pending_management
     self.pending_management = empty(address)
     self.management = msg.sender
+    log SetManagement(msg.sender)
