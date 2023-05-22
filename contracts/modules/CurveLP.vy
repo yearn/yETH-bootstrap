@@ -45,6 +45,8 @@ token: public(immutable(address))
 pol: public(immutable(address))
 management: public(address)
 pending_management: public(address)
+operator: public(address)
+pending_operator: public(address)
 pool: public(address)
 gauge: public(address)
 convex_booster: public(address)
@@ -62,6 +64,12 @@ event PendingManagement:
 
 event SetManagement:
     management: indexed(address)
+
+event PendingOperator:
+    operator: indexed(address)
+
+event SetOperator:
+    operator: indexed(address)
 
 event FromPOL:
     token: indexed(address)
@@ -98,6 +106,7 @@ def __init__(_token: address, _pol: address):
     token = _token
     pol = _pol
     self.management = msg.sender
+    self.operator = msg.sender
 
 @external
 @payable
@@ -106,7 +115,7 @@ def __default__():
 
 @external
 def from_pol(_token: address, _amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     if _token == NATIVE:
         POL(pol).send_native(self, _amount)
     elif _token == MINT:
@@ -119,12 +128,25 @@ def from_pol(_token: address, _amount: uint256):
 
 @external
 def to_pol(_token: address, _amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     if _token == NATIVE:
         POL(pol).receive_native(value=_amount)
     else:
         assert ERC20(_token).transfer(pol, _amount, default_return_value=True)
     log ToPOL(_token, _amount)
+
+@external
+def set_operator(_operator: address):
+    assert msg.sender == self.operator or msg.sender == self.management
+    self.pending_operator = _operator
+    log PendingOperator(_operator)
+
+@external
+def accept_operator():
+    assert msg.sender == self.pending_operator
+    self.pending_operator = empty(address)
+    self.operator = msg.sender
+    log SetOperator(msg.sender)
 
 @external
 def set_management(_management: address):
@@ -154,19 +176,19 @@ def approve_pool(_amount: uint256):
 
 @external
 def add_liquidity(_amounts: uint256[2], _min_lp: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     lp: uint256 = CurvePool(self.pool).add_liquidity(_amounts, _min_lp, pol, value=_amounts[0])
     log AddLiquidity(_amounts, lp)
 
 @external
 def remove_liquidity(_lp_amount: uint256, _min_amounts: uint256[2]):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     amounts: uint256[2] = CurvePool(self.pool).remove_liquidity(_lp_amount, _min_amounts, pol)
     log RemoveLiquidity(_lp_amount, amounts)
 
 @external
 def remove_liquidity_imbalance(_amounts: uint256[2], _max_lp: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     lp: uint256 = CurvePool(self.pool).remove_liquidity_imbalance(_amounts, _max_lp, pol)
     log RemoveLiquidity(lp, _amounts)
 
@@ -180,7 +202,7 @@ def set_gauge(_gauge: address):
 
 @external
 def approve_gauge(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     assert self.gauge != empty(address)
     assert ERC20(self.pool).approve(self.gauge, _amount, default_return_value=True)
 
@@ -191,13 +213,13 @@ def gauge_rewards_receiver():
 
 @external
 def deposit_gauge(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     CurveGauge(self.gauge).deposit(_amount)
     log Deposit(0, _amount, _amount)
 
 @external
 def withdraw_gauge(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     CurveGauge(self.gauge).withdraw(_amount)
     log Withdraw(0, _amount, _amount)
     
@@ -228,39 +250,39 @@ def set_convex_rewards(_rewards: address):
 
 @external
 def approve_convex_booster(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     assert self.convex_booster != empty(address)
     assert ERC20(self.pool).approve(self.convex_booster, _amount, default_return_value=True)
 
 @external
 def deposit_convex_booster(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     assert self.convex_pool_id != 0
     ConvexBooster(self.convex_booster).deposit(self.convex_pool_id, _amount, True)
     log Deposit(1, _amount, _amount)
 
 @external
 def withdraw_convex_booster(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     assert self.convex_pool_id != 0
     ConvexBooster(self.convex_booster).withdraw(self.convex_pool_id, _amount)
     log Withdraw(1, _amount, _amount)
 
 @external
 def approve_convex_rewards(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     assert self.convex_rewards != empty(address)
     assert ERC20(self.convex_token).approve(self.convex_rewards, _amount, default_return_value=True)
 
 @external
 def deposit_convex_rewards(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     ConvexRewards(self.convex_rewards).stake(_amount)
     log Deposit(2, _amount, _amount)
 
 @external
 def withdraw_convex_rewards(_amount: uint256, _unwrap: bool):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     if _unwrap:
         ConvexRewards(self.convex_rewards).withdrawAndUnwrap(_amount, True)
         log Withdraw(1, _amount, _amount)
@@ -278,18 +300,18 @@ def set_yvault(_yvault: address):
 
 @external
 def approve_yvault(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     assert self.yvault != empty(address)
     assert ERC20(self.pool).approve(self.yvault, _amount, default_return_value=True)
 
 @external
 def deposit_yvault(_amount: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     shares: uint256 = YVault(self.yvault).deposit(_amount)
     log Deposit(3, _amount, shares)
 
 @external
 def withdraw_yvault(_shares: uint256, _max_loss: uint256):
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     amount: uint256 = YVault(self.yvault).withdraw(_shares, self, _max_loss)
     log Withdraw(3, _shares, amount)
