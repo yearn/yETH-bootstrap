@@ -458,7 +458,8 @@ def deposit_yvault(_amount: uint256):
 def withdraw_yvault(_shares: uint256, _max_loss: uint256):
     """
     @notice Withdraw LP tokens from Yearn vault
-    @param _amount Amount of tokens to withdraw
+    @param _shares Amount of shares to withdraw
+    @param _max_loss Max loss during withdrawal
     """
     assert msg.sender == self.operator
     amount: uint256 = YVault(self.yvault).withdraw(_shares, self, _max_loss)

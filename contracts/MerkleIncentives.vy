@@ -114,7 +114,6 @@ def hash_siblings(_a: bytes32, _b: bytes32) -> bytes32:
     @notice Calculate hash of two siblings
     @param _a Hash of first sibling
     @param _b Hash of second sibling
-    @param _amount Amount of tokens
     @return Hash of siblings
     @dev Ordering of arguments does not matter
     """
@@ -127,7 +126,6 @@ def _hash_siblings(_a: bytes32, _b: bytes32) -> bytes32:
     @notice Calculate hash of two siblings
     @param _a Hash of first sibling
     @param _b Hash of second sibling
-    @param _amount Amount of tokens
     @return Hash of siblings
     @dev Ordering of arguments does not matter
     """
