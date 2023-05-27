@@ -1,6 +1,7 @@
 import ape
 import pytest
 
+ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 NATIVE = '0x0000000000000000000000000000000000000000'
 MINT   = '0x0000000000000000000000000000000000000001'
 BURN   = '0x0000000000000000000000000000000000000002'
@@ -140,3 +141,23 @@ def test_allow_decrease(project, deployer, alice, pol):
     pol.approve(token, alice, 3 * ONE, sender=deployer)
     pol.decrease_allowance(token, alice, ONE, sender=deployer)
     assert token.allowance(pol, alice) == 2 * ONE
+
+def test_transfer_management(deployer, alice, bob, pol):
+    assert pol.management() == deployer
+    assert pol.pending_management() == ZERO_ADDRESS
+
+    with ape.reverts():
+        pol.set_management(alice, sender=alice)
+    with ape.reverts():
+        pol.accept_management(sender=alice)
+ 
+    pol.set_management(alice, sender=deployer)
+    assert pol.management() == deployer
+    assert pol.pending_management() == alice
+
+    with ape.reverts():
+        pol.accept_management(sender=bob)
+    
+    pol.accept_management(sender=alice)
+    assert pol.management() == alice
+    assert pol.pending_management() == ZERO_ADDRESS
