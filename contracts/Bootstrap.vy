@@ -466,6 +466,8 @@ def declare_winners(_winners: DynArray[address, MAX_WINNERS]):
     @param _winners Addresses of the LSD protocols
     """
     assert msg.sender == self.management
+    assert block.timestamp >= self.incentive_end
+    assert block.timestamp >= self.deposit_end
     assert block.timestamp >= self.vote_end
     assert len(self.winners_list) == 0
     for winner in _winners:
