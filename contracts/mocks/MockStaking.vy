@@ -19,6 +19,14 @@ def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
     return _assets
 
 @external
+def withdraw(_assets: uint256, _receiver: address = msg.sender) -> uint256:
+    # burn 1:1
+    self.totalSupply -= _assets
+    self.balanceOf[msg.sender] -= _assets
+    assert ERC20(asset).transfer(_receiver, _assets, default_return_value=True)
+    return _assets
+
+@external
 def transfer(_receiver: address, _amount: uint256) -> bool:
     self.balanceOf[msg.sender] -= _amount
     self.balanceOf[_receiver] += _amount
