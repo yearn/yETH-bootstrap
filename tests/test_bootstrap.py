@@ -42,8 +42,8 @@ def bootstrap(project, chain, deployer, treasury, pol, token, staking):
     bootstrap.set_whitelist_period(ts, ts + WEEK_LENGTH, sender=deployer)
     bootstrap.set_incentive_period(ts + WEEK_LENGTH, ts + 2 * WEEK_LENGTH, sender=deployer)
     bootstrap.set_deposit_period(ts + 2 * WEEK_LENGTH, ts + 3 * WEEK_LENGTH, sender=deployer)
-    bootstrap.set_vote_period(ts + 3 * WEEK_LENGTH, ts + 4 * WEEK_LENGTH, sender=deployer)
     bootstrap.set_lock_end(ts + 5 * WEEK_LENGTH, sender=deployer)
+    bootstrap.set_vote_period(ts + 3 * WEEK_LENGTH, ts + 4 * WEEK_LENGTH, sender=deployer)
     return bootstrap
 
 def test_apply_early_late(project, chain, deployer, alice, bootstrap):

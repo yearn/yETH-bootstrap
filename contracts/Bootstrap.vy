@@ -422,6 +422,7 @@ def set_vote_period(_begin: uint256, _end: uint256):
     assert msg.sender == self.management
     assert _begin >= self.deposit_begin
     assert _end > _begin
+    assert _end <= self.lock_end
     self.vote_begin = _begin
     self.vote_end = _end
     log SetPeriod(3, _begin, _end)
