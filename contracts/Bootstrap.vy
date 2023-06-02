@@ -44,6 +44,7 @@ incentives: public(HashMap[address, HashMap[address, uint256]]) # protocol => in
 incentive_depositors: public(HashMap[address, HashMap[address, HashMap[address, uint256]]]) # protocol => incentive => depositor => amount
 voted: public(uint256)
 votes_used: public(HashMap[address, uint256]) # user => votes used
+votes_used_protocol: public(HashMap[address, HashMap[address, uint256]]) # user => protocol => votes
 votes: public(HashMap[address, uint256]) # protocol => votes
 winners_list: public(DynArray[address, MAX_WINNERS])
 winners: public(HashMap[address, bool]) # protocol => winner?
@@ -253,11 +254,30 @@ def vote(_protocols: DynArray[address, 32], _votes: DynArray[uint256, 32]):
         assert self.applications[protocol] == WHITELISTED # dev: protocol not whitelisted
         used += votes
         self.votes[protocol] += votes
+        self.votes_used_protocol[msg.sender][protocol] += votes
         log Vote(msg.sender, protocol, votes)
     self.voted += used
     used += self.votes_used[msg.sender]
     assert used <= self.deposits[msg.sender] # dev: too many votes
     self.votes_used[msg.sender] = used
+
+@external
+def undo_vote(_protocol: address, _account: address = msg.sender) -> uint256:
+    """
+    @notice Undo vote for a protocol that had their whitelist retracted
+    @param _protocol Protocol to undo votes for
+    @param _account Account to undo votes for
+    @return Amount of freed up votes
+    """
+    assert block.timestamp >= self.vote_begin and block.timestamp < self.vote_end # dev: outside vote period
+    assert self.applications[_protocol] != WHITELISTED
+    votes: uint256 = self.votes_used_protocol[_account][_protocol]
+    assert votes > 0
+    self.voted -= votes
+    self.votes[_protocol] -= votes
+    self.votes_used[_account] -= votes
+    self.votes_used_protocol[_account][_protocol] = 0
+    return votes
 
 @external
 def repay(_amount: uint256):

@@ -283,12 +283,14 @@ def test_vote(project, chain, deployer, alice, bootstrap):
     chain.mine()
     assert bootstrap.voted() == 0
     assert bootstrap.votes_used(alice) == 0
+    assert bootstrap.votes_used_protocol(alice, protocol) == 0
     assert bootstrap.votes(protocol) == 0
     assert bootstrap.votes_available(alice) == ONE
 
     bootstrap.vote([protocol], [ONE], sender=alice)
     assert bootstrap.voted() == ONE
     assert bootstrap.votes_used(alice) == ONE
+    assert bootstrap.votes_used_protocol(alice, protocol) == ONE
     assert bootstrap.votes(protocol) == ONE
     assert bootstrap.votes_available(alice) == 0
 
@@ -361,8 +363,34 @@ def test_vote_multiple(project, chain, deployer, alice, bootstrap):
     bootstrap.vote([protocol], [2 * ONE], sender=alice)
     assert bootstrap.voted() == 3 * ONE
     assert bootstrap.votes_used(alice) == 3 * ONE
+    assert bootstrap.votes_used_protocol(alice, protocol) == 3 * ONE
     assert bootstrap.votes(protocol) == 3 * ONE
     assert bootstrap.votes_available(alice) == 0
+
+def test_undo_vote(project, chain, deployer, alice, bob, bootstrap):
+    protocol = project.MockToken.deploy(sender=deployer)
+    
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.apply(protocol, value=ONE, sender=alice)
+    bootstrap.whitelist(protocol, sender=deployer)
+
+    chain.pending_timestamp += 2 * WEEK_LENGTH
+    alice.transfer(bootstrap, ONE)
+
+    chain.pending_timestamp += WEEK_LENGTH
+    bootstrap.vote([protocol], [ONE], sender=alice)
+
+    with ape.reverts():
+        bootstrap.undo_vote(protocol, alice, sender=bob)
+
+    bootstrap.undo_whitelist(protocol, sender=deployer)
+    bootstrap.undo_vote(protocol, alice, sender=bob)
+    assert bootstrap.voted() == 0
+    assert bootstrap.votes_used(alice) == 0
+    assert bootstrap.votes_used_protocol(alice, protocol) == 0
+    assert bootstrap.votes(protocol) == 0
+    assert bootstrap.votes_available(alice) == ONE
+
 
 def test_declare_early(project, chain, deployer, alice, bootstrap):
     protocol = project.MockToken.deploy(sender=deployer)
