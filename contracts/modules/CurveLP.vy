@@ -243,25 +243,33 @@ def add_liquidity(_amounts: uint256[2], _min_lp: uint256):
     log AddLiquidity(_amounts, lp)
 
 @external
-def remove_liquidity(_lp_amount: uint256, _min_amounts: uint256[2]):
+def remove_liquidity(_lp_amount: uint256, _min_amounts: uint256[2], _pool: address = empty(address)):
     """
     @notice Remove liquidity from the Curve pool
     @param _lp_amount Amount of LP tokens to redeem
     @param _min_amounts Minimum amounts of ETH and yETH to receive
     """
     assert msg.sender == self.operator
-    amounts: uint256[2] = CurvePool(self.pool).remove_liquidity(_lp_amount, _min_amounts, pol)
+    pool: address = _pool
+    if _pool == empty(address):
+        pool = self.pool
+
+    amounts: uint256[2] = CurvePool(pool).remove_liquidity(_lp_amount, _min_amounts, pol)
     log RemoveLiquidity(_lp_amount, amounts)
 
 @external
-def remove_liquidity_imbalance(_amounts: uint256[2], _max_lp: uint256):
+def remove_liquidity_imbalance(_amounts: uint256[2], _max_lp: uint256, _pool: address = empty(address)):
     """
     @notice Remove liquidity from the Curve pool in an imbalanced way
     @param _amounts Amounts of ETH and yETH to receive
     @param _max_lp Maximum amount of LP tokens to redeem
     """
     assert msg.sender == self.operator
-    lp: uint256 = CurvePool(self.pool).remove_liquidity_imbalance(_amounts, _max_lp, pol)
+    pool: address = _pool
+    if _pool == empty(address):
+        pool = self.pool
+
+    lp: uint256 = CurvePool(pool).remove_liquidity_imbalance(_amounts, _max_lp, pol)
     log RemoveLiquidity(lp, _amounts)
 
 # GAUGE FUNCTIONS
@@ -305,13 +313,17 @@ def deposit_gauge(_amount: uint256):
     log Deposit(0, _amount, _amount)
 
 @external
-def withdraw_gauge(_amount: uint256):
+def withdraw_gauge(_amount: uint256, _gauge: address = empty(address)):
     """
     @notice Withdraw LP tokens from gauge
     @param _amount Amount of tokens to withdraw
     """
     assert msg.sender == self.operator
-    CurveGauge(self.gauge).withdraw(_amount)
+    gauge: address = _gauge
+    if _gauge == empty(address):
+        gauge = self.gauge
+
+    CurveGauge(gauge).withdraw(_amount)
     log Withdraw(0, _amount, _amount)
     
 # CONVEX FUNCTIONS
@@ -377,14 +389,21 @@ def deposit_convex_booster(_amount: uint256):
     log Deposit(1, _amount, _amount)
 
 @external
-def withdraw_convex_booster(_amount: uint256):
+def withdraw_convex_booster(_amount: uint256, _booster: address = empty(address), _pool_id: uint256 = 0):
     """
     @notice Withdraw LP tokens from Convex
     @param _amount Amount of tokens to withdraw
     """
     assert msg.sender == self.operator
-    assert self.convex_pool_id != 0
-    ConvexBooster(self.convex_booster).withdraw(self.convex_pool_id, _amount)
+    booster: address = _booster
+    if _booster == empty(address):
+        booster = self.convex_booster
+    pool_id: uint256 = _pool_id
+    if _pool_id == 0:
+        pool_id = self.convex_pool_id
+        assert pool_id != 0
+
+    ConvexBooster(booster).withdraw(pool_id, _amount)
     log Withdraw(1, _amount, _amount)
 
 @external
@@ -408,18 +427,22 @@ def deposit_convex_rewards(_amount: uint256):
     log Deposit(2, _amount, _amount)
 
 @external
-def withdraw_convex_rewards(_amount: uint256, _unwrap: bool):
+def withdraw_convex_rewards(_amount: uint256, _unwrap: bool, _rewards: address = empty(address)):
     """
     @notice Withdraw Convex LP tokens from rewards contract
     @param _amount Amount of tokens to withdraw
     @param _unwrap True to also withdraw from Convex booster, False otherwise
     """
     assert msg.sender == self.operator
+    rewards: address = _rewards
+    if _rewards == empty(address):
+        rewards = self.convex_rewards
+
     if _unwrap:
-        ConvexRewards(self.convex_rewards).withdrawAndUnwrap(_amount, True)
+        ConvexRewards(rewards).withdrawAndUnwrap(_amount, True)
         log Withdraw(1, _amount, _amount)
     else:
-        ConvexRewards(self.convex_rewards).withdraw(_amount, True)
+        ConvexRewards(rewards).withdraw(_amount, True)
     log Withdraw(2, _amount, _amount)
 
 # YVAULT FUNCTIONS
@@ -455,12 +478,16 @@ def deposit_yvault(_amount: uint256):
     log Deposit(3, _amount, shares)
 
 @external
-def withdraw_yvault(_shares: uint256, _max_loss: uint256):
+def withdraw_yvault(_shares: uint256, _max_loss: uint256, _vault: address = empty(address)):
     """
     @notice Withdraw LP tokens from Yearn vault
     @param _shares Amount of shares to withdraw
     @param _max_loss Max loss during withdrawal
     """
     assert msg.sender == self.operator
-    amount: uint256 = YVault(self.yvault).withdraw(_shares, self, _max_loss)
+    vault: address = _vault
+    if _vault == empty(address):
+        vault = self.yvault
+
+    amount: uint256 = YVault(vault).withdraw(_shares, self, _max_loss)
     log Withdraw(3, _shares, amount)
