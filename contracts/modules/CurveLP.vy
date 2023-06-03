@@ -210,6 +210,11 @@ def accept_management():
     self.management = msg.sender
     log SetManagement(msg.sender)
 
+@external
+def remove_allowance(_token: address, _spender: address):
+    assert msg.sender == self.operator
+    assert ERC20(_token).approve(_spender, 0, default_return_value=True)
+
 # CURVE POOL FUNCTIONS
 
 @external
