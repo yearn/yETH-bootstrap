@@ -20,9 +20,9 @@ interface POL:
 
 # https://github.com/curvefi/curve-factory/blob/master/contracts/implementations/plain-2/Plain2ETHEMA.vy
 interface CurvePool:
-    def add_liquidity(_amounts: uint256[2], _min_mint_amount: uint256, _receiver: address) -> uint256: payable
-    def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[2], _receiver: address) -> uint256[2]: nonpayable
-    def remove_liquidity_imbalance(_amounts: uint256[2], _max_burn_amount: uint256, _receiver: address) -> uint256: nonpayable
+    def add_liquidity(_amounts: uint256[2], _min_mint_amount: uint256) -> uint256: payable
+    def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[2]) -> uint256[2]: nonpayable
+    def remove_liquidity_imbalance(_amounts: uint256[2], _max_burn_amount: uint256) -> uint256: nonpayable
 
 # https://github.com/curvefi/curve-factory/blob/master/contracts/LiquidityGauge.vy
 interface CurveGauge:
@@ -244,7 +244,7 @@ def add_liquidity(_amounts: uint256[2], _min_lp: uint256):
     @param _min_lp Minimum amount of LP tokens to receive
     """
     assert msg.sender == self.operator
-    lp: uint256 = CurvePool(self.pool).add_liquidity(_amounts, _min_lp, pol, value=_amounts[0])
+    lp: uint256 = CurvePool(self.pool).add_liquidity(_amounts, _min_lp, value=_amounts[0])
     log AddLiquidity(_amounts, lp)
 
 @external
@@ -259,7 +259,7 @@ def remove_liquidity(_lp_amount: uint256, _min_amounts: uint256[2], _pool: addre
     if _pool == empty(address):
         pool = self.pool
 
-    amounts: uint256[2] = CurvePool(pool).remove_liquidity(_lp_amount, _min_amounts, pol)
+    amounts: uint256[2] = CurvePool(pool).remove_liquidity(_lp_amount, _min_amounts)
     log RemoveLiquidity(_lp_amount, amounts)
 
 @external
@@ -274,7 +274,7 @@ def remove_liquidity_imbalance(_amounts: uint256[2], _max_lp: uint256, _pool: ad
     if _pool == empty(address):
         pool = self.pool
 
-    lp: uint256 = CurvePool(pool).remove_liquidity_imbalance(_amounts, _max_lp, pol)
+    lp: uint256 = CurvePool(pool).remove_liquidity_imbalance(_amounts, _max_lp)
     log RemoveLiquidity(lp, _amounts)
 
 # GAUGE FUNCTIONS
@@ -304,7 +304,7 @@ def gauge_rewards_receiver():
     """
     @notice Set POL as Curve gauge rewards receiver
     """
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     CurveGauge(self.gauge).set_rewards_receiver(pol)
 
 @external
