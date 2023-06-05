@@ -64,6 +64,9 @@ event SetAddress:
     index: indexed(uint256)
     value: address
 
+event SetConvexPoolId:
+    pool_id: indexed(uint256)
+
 event PendingManagement:
     management: indexed(address)
 
@@ -352,6 +355,7 @@ def set_convex_pool_id(_pool_id: uint256):
     """
     assert msg.sender == self.management
     self.convex_pool_id = _pool_id
+    log SetConvexPoolId(_pool_id)
 
 @external
 def set_convex_token(_token: address):
