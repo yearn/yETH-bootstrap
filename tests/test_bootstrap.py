@@ -214,9 +214,10 @@ def test_repay(chain, deployer, alice, bob, token, bootstrap):
     alice.transfer(bootstrap, 3 * ONE)
     token.set_minter(deployer, sender=deployer)
     token.mint(bob, 2 * ONE, sender=deployer)
+    token.approve(bootstrap, MAX, sender=bob)
     with ape.reverts():
         bootstrap.repay(2 * ONE, sender=bob)
-    token.approve(bootstrap, MAX, sender=bob)
+    bootstrap.allow_repay(bob, True, sender=deployer)
     bootstrap.repay(2 * ONE, sender=bob)
     assert token.balanceOf(bob) == 0
     assert token.balanceOf(bootstrap) == 0
@@ -390,7 +391,6 @@ def test_undo_vote(project, chain, deployer, alice, bob, bootstrap):
     assert bootstrap.votes_used_protocol(alice, protocol) == 0
     assert bootstrap.votes(protocol) == 0
     assert bootstrap.votes_available(alice) == ONE
-
 
 def test_declare_early(project, chain, deployer, alice, bootstrap):
     protocol = project.MockToken.deploy(sender=deployer)

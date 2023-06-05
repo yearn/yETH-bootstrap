@@ -43,8 +43,8 @@ def bootstrap(project, chain, deployer, treasury, pol, token, staking):
     bootstrap.set_whitelist_period(ts, ts + WEEK_LENGTH, sender=deployer)
     bootstrap.set_incentive_period(ts, ts + WEEK_LENGTH, sender=deployer)
     bootstrap.set_deposit_period(ts, ts + WEEK_LENGTH, sender=deployer)
-    bootstrap.set_vote_period(ts, ts + WEEK_LENGTH, sender=deployer)
     bootstrap.set_lock_end(ts + WEEK_LENGTH, sender=deployer)
+    bootstrap.set_vote_period(ts, ts + WEEK_LENGTH, sender=deployer)
     return bootstrap
 
 @pytest.fixture
@@ -55,6 +55,8 @@ def pool(project, deployer):
 def shutdown(chain, project, deployer, treasury, alice, token, staking, pol, bootstrap, pool):
     shutdown = project.Shutdown.deploy(token, bootstrap, pol, sender=deployer)
     shutdown.set_pool(pool, sender=deployer)
+    bootstrap.allow_repay(treasury, True, sender=deployer)
+    bootstrap.allow_repay(shutdown, True, sender=deployer)
     pol.approve(NATIVE, shutdown, MAX, sender=deployer)
 
     # create debt of 10 yETH
@@ -79,6 +81,13 @@ def shutdown(chain, project, deployer, treasury, alice, token, staking, pol, boo
     return shutdown
 
 def test_not_killed(alice, shutdown):
+    with ape.reverts():
+        shutdown.redeem(ONE, sender=alice)
+
+def test_not_allowed(deployer, alice, bootstrap, pool, shutdown):
+    bootstrap.allow_repay(shutdown, False, sender=deployer)
+    pool.set_killed(True, sender=deployer)
+
     with ape.reverts():
         shutdown.redeem(ONE, sender=alice)
 

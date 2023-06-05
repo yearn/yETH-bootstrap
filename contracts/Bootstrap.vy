@@ -35,6 +35,7 @@ treasury: public(immutable(address))
 pol: public(immutable(address))
 management: public(address)
 pending_management: public(address)
+repay_allowed: public(HashMap[address, bool])
 
 applications: HashMap[address, uint256]
 debt: public(uint256)
@@ -283,7 +284,9 @@ def repay(_amount: uint256):
     """
     @notice Repay yETH debt by burning it
     @param _amount Amount of debt to repay
+    @dev Requires prior permission by management
     """
+    assert self.repay_allowed[msg.sender]
     self.debt -= _amount
     assert ERC20(token).transferFrom(msg.sender, self, _amount, default_return_value=True)
     Token(token).burn(self, _amount)
@@ -496,6 +499,16 @@ def declare_winners(_winners: DynArray[address, MAX_WINNERS]):
         self.winners_list.append(winner)
         self.winners[winner] = True
     log Winners(_winners)
+
+@external
+def allow_repay(_account: address, _allow: bool):
+    """
+    @notice Allow specific account to repay debt
+    @param _account Account to set permission for
+    @param _allow Flag whether to allow repayment or not
+    """
+    assert msg.sender == self.management
+    self.repay_allowed[_account] = _allow
 
 @external
 def set_management(_management: address):
