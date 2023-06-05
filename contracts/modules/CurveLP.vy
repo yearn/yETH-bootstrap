@@ -234,6 +234,7 @@ def approve_pool(_amount: uint256):
     @param _amount Amount of tokens to approve
     """
     assert msg.sender == self.operator
+    assert self.pool != empty(address)
     assert ERC20(token).approve(self.pool, _amount, default_return_value=True)
 
 @external
