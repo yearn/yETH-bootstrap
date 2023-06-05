@@ -388,14 +388,14 @@ def approve_convex_booster(_amount: uint256):
     assert ERC20(self.pool).approve(self.convex_booster, _amount, default_return_value=True)
 
 @external
-def deposit_convex_booster(_amount: uint256):
+def deposit_convex_booster(_amount: uint256, _stake: bool):
     """
     @notice Deposit LP tokens into Convex
     @param _amount Amount of tokens to deposit
     """
     assert msg.sender == self.operator
     assert self.convex_pool_id != 0
-    ConvexBooster(self.convex_booster).deposit(self.convex_pool_id, _amount, True)
+    ConvexBooster(self.convex_booster).deposit(self.convex_pool_id, _amount, _stake)
     log Deposit(1, _amount, _amount)
 
 @external
