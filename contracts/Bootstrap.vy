@@ -123,7 +123,6 @@ event SetManagement:
 NOTHING: constant(uint256) = 0
 APPLIED: constant(uint256) = 1
 WHITELISTED: constant(uint256) = 2
-POL_SPLIT: constant(uint256) = 10
 MAX_WINNERS: constant(uint256) = 5
 
 @external
