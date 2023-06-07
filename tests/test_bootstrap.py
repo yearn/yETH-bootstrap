@@ -382,10 +382,10 @@ def test_undo_vote(project, chain, deployer, alice, bob, bootstrap):
     bootstrap.vote([protocol], [ONE], sender=alice)
 
     with ape.reverts():
-        bootstrap.undo_vote(protocol, alice, sender=bob)
+        bootstrap.undo_vote(protocol, alice, sender=deployer)
 
     bootstrap.undo_whitelist(protocol, sender=deployer)
-    bootstrap.undo_vote(protocol, alice, sender=bob)
+    bootstrap.undo_vote(protocol, alice, sender=deployer)
     assert bootstrap.voted() == 0
     assert bootstrap.votes_used(alice) == 0
     assert bootstrap.votes_used_protocol(alice, protocol) == 0

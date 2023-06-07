@@ -271,6 +271,7 @@ def undo_vote(_protocol: address, _account: address = msg.sender) -> uint256:
     """
     assert block.timestamp >= self.vote_begin and block.timestamp < self.vote_end # dev: outside vote period
     assert self.applications[_protocol] != WHITELISTED
+    assert _account == msg.sender or msg.sender == self.management
     votes: uint256 = self.votes_used_protocol[_account][_protocol]
     assert votes > 0
     self.voted -= votes
