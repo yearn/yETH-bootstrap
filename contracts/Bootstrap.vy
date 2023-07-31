@@ -18,6 +18,9 @@
     90% of deposited ETH is used to buy LSDs and deposit into the newly deployed yETH pool.
     The minted yETH is used to pay off 90% of the debt in the bootstrap contract.
     Depositor's st-yETH become withdrawable after a specific time.
+
+    This contract is used to lock new st-yETH on behalf of original bootstrap depositors, following the deployment 
+    of the new version of the staking contract. The yETH underlying the original bootstrap contract has been burned.
 """
 
 from vyper.interfaces import ERC20
@@ -35,6 +38,7 @@ treasury: public(immutable(address))
 pol: public(immutable(address))
 management: public(address)
 pending_management: public(address)
+depositor: public(address)
 repay_allowed: public(HashMap[address, bool])
 
 applications: HashMap[address, uint256]
@@ -140,15 +144,8 @@ def __init__(_token: address, _staking: address, _treasury: address, _pol: addre
     treasury = _treasury
     pol = _pol
     self.management = msg.sender
+    self.depositor = msg.sender
     assert ERC20(token).approve(_staking, max_value(uint256), default_return_value=True)
-
-@external
-@payable
-def __default__():
-    """
-    @notice Send ETH in exchange for 1:1 locked st-yETH
-    """
-    self._deposit(msg.sender)
 
 @external
 @payable
@@ -184,30 +181,24 @@ def incentivize(_protocol: address, _incentive: address, _amount: uint256):
     log Incentivize(_protocol, _incentive, msg.sender, _amount)
 
 @external
-@payable
-def deposit(_account: address = msg.sender):
-    """
-    @notice Deposit ETH in exchange for 1:1 locked st-yETH
-    @param _account Deposit on behalf of this account
-    """
-    self._deposit(_account)
+def deposit(_accounts: DynArray[address, 256], _amounts: DynArray[uint256, 256]):
+    assert msg.sender == self.depositor
+    assert len(_accounts) == len(_amounts)
 
-@internal
-@payable
-def _deposit(_account: address):
-    """
-    @notice Deposit ETH in exchange for 1:1 locked st-yETH
-    @param _account Deposit on behalf of this account
-    """
-    assert msg.value > 0
-    assert block.timestamp >= self.deposit_begin and block.timestamp < self.deposit_end # dev: outside deposit period
-    assert self.lock_end > 0
-    self.debt += msg.value
-    self.deposited += msg.value
-    self.deposits[_account] += msg.value
-    Token(token).mint(self, msg.value)
-    Staking(staking).deposit(msg.value)
-    log Deposit(msg.sender, _account, msg.value)
+    total: uint256 = 0
+    for i in range(256):
+        if i == len(_accounts):
+            break
+        account: address = _accounts[i]
+        amount: uint256 = _amounts[i]
+        total += amount
+        self.deposits[account] += amount
+        log Deposit(msg.sender, account, amount)
+
+    self.debt += total
+    self.deposited += total
+    Token(token).mint(self, total)
+    Staking(staking).deposit(total)
 
 @external
 def claim(_amount: uint256, _receiver: address = msg.sender):
@@ -510,6 +501,11 @@ def allow_repay(_account: address, _allow: bool):
     """
     assert msg.sender == self.management
     self.repay_allowed[_account] = _allow
+
+@external
+def set_depositor(_depositor: address):
+    assert msg.sender == self.depositor
+    self.depositor = _depositor
 
 @external
 def set_management(_management: address):
