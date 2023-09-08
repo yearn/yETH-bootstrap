@@ -18,9 +18,13 @@ interface POL:
     def mint(_amount: uint256): nonpayable
     def burn(_amount: uint256): nonpayable
 
-# https://github.com/curvefi/curve-factory/blob/master/contracts/implementations/plain-2/Plain2ETHEMA.vy
+interface WETH:
+    def deposit(): payable
+    def withdraw(_amount: uint256): nonpayable
+
+# https://github.com/curvefi/curve-factory/blob/master/contracts/implementations/plain-2/Plain2BasicEMA.vy
 interface CurvePool:
-    def add_liquidity(_amounts: uint256[2], _min_mint_amount: uint256) -> uint256: payable
+    def add_liquidity(_amounts: uint256[2], _min_mint_amount: uint256) -> uint256: nonpayable
     def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[2]) -> uint256[2]: nonpayable
     def remove_liquidity_imbalance(_amounts: uint256[2], _max_burn_amount: uint256) -> uint256: nonpayable
 
@@ -48,6 +52,7 @@ interface YVault:
 
 token: public(immutable(address))
 pol: public(immutable(address))
+weth: public(immutable(address))
 management: public(address)
 pending_management: public(address)
 operator: public(address)
@@ -110,7 +115,7 @@ MINT: constant(address)   = 0x0000000000000000000000000000000000000001
 BURN: constant(address)   = 0x0000000000000000000000000000000000000002
 
 @external
-def __init__(_token: address, _pol: address):
+def __init__(_token: address, _pol: address, _weth: address):
     """
     @notice Constructor
     @param _token yETH token address
@@ -118,6 +123,7 @@ def __init__(_token: address, _pol: address):
     """
     token = _token
     pol = _pol
+    weth = _weth
     self.management = msg.sender
     self.operator = msg.sender
 
@@ -164,6 +170,24 @@ def to_pol(_token: address, _amount: uint256):
     else:
         assert ERC20(_token).transfer(pol, _amount, default_return_value=True)
     log ToPOL(_token, _amount)
+
+@external
+def wrap(_amount: uint256):
+    """
+    @notice Wrap ETH
+    @param _amount Amount of ETH to wrap
+    """
+    assert msg.sender == self.operator
+    WETH(weth).deposit(value=_amount)
+
+@external
+def unwrap(_amount: uint256):
+    """
+    @notice Unwrap ETH
+    @param _amount Amount of ETH to unwrap
+    """
+    assert msg.sender == self.operator
+    WETH(weth).withdraw(_amount)
 
 @external
 def set_operator(_operator: address):
@@ -231,7 +255,7 @@ def set_pool(_pool: address):
     log SetAddress(0, _pool)
 
 @external
-def approve_pool(_amount: uint256):
+def approve_pool_yeth(_amount: uint256):
     """
     @notice Approve Curve pool to transfer yETH
     @param _amount Amount of tokens to approve
@@ -241,6 +265,16 @@ def approve_pool(_amount: uint256):
     assert ERC20(token).approve(self.pool, _amount, default_return_value=True)
 
 @external
+def approve_pool_weth(_amount: uint256):
+    """
+    @notice Approve Curve pool to transfer WETH
+    @param _amount Amount of tokens to approve
+    """
+    assert msg.sender == self.operator
+    assert self.pool != empty(address)
+    assert ERC20(weth).approve(self.pool, _amount, default_return_value=True)
+
+@external
 def add_liquidity(_amounts: uint256[2], _min_lp: uint256):
     """
     @notice Add liquidity to the Curve pool
@@ -248,7 +282,7 @@ def add_liquidity(_amounts: uint256[2], _min_lp: uint256):
     @param _min_lp Minimum amount of LP tokens to receive
     """
     assert msg.sender == self.operator
-    lp: uint256 = CurvePool(self.pool).add_liquidity(_amounts, _min_lp, value=_amounts[0])
+    lp: uint256 = CurvePool(self.pool).add_liquidity(_amounts, _min_lp)
     log AddLiquidity(_amounts, lp)
 
 @external
@@ -296,7 +330,7 @@ def set_gauge(_gauge: address):
 @external
 def approve_gauge(_amount: uint256):
     """
-    @notice Approve gauge to transfer yETH
+    @notice Approve gauge to transfer Curve pool token
     @param _amount Amount of tokens to approve
     """
     assert msg.sender == self.operator
