@@ -9,8 +9,8 @@ BURN   = '0x0000000000000000000000000000000000000002'
 ONE    = 1_000_000_000_000_000_000
 MAX    = 2**256 - 1
 
+WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 FACTORY = '0xB9fC157394Af804a3578134A6585C0dc9cc990d4'
-POOL_ETH_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
 GAUGE_CONTROLLER = '0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB'
 GAUGE_CONTROLLER_ADMIN = '0x40907540d8a6C65c637785e8f8B742ae6b0b9968'
 CONVEX_POOL_MANAGER = '0xc461E1CE3795Ee30bA2EC59843d5fAe14d5782D5'
@@ -34,6 +34,10 @@ def token(project, deployer):
     return project.Token.deploy(sender=deployer)
 
 @pytest.fixture
+def weth():
+    return Contract(WETH)
+
+@pytest.fixture
 def pol(project, alice, deployer, token):
     pol = project.POL.deploy(token, sender=deployer)
     token.set_minter(pol, sender=deployer)
@@ -42,7 +46,7 @@ def pol(project, alice, deployer, token):
 
 @pytest.fixture
 def curve_module(project, deployer, operator, token, pol):
-    curve_module = project.CurveLP.deploy(token, pol, sender=deployer)
+    curve_module = project.CurveLP.deploy(token, pol, WETH, sender=deployer)
     curve_module.set_operator(operator, sender=deployer)
     curve_module.accept_operator(sender=operator)
     pol.approve(MINT, curve_module, MAX, sender=deployer)
@@ -53,10 +57,11 @@ def curve_module(project, deployer, operator, token, pol):
 @pytest.fixture
 def curve_pool(project, deployer, operator, token, pol, curve_module):
     factory = Contract(FACTORY)
-    factory.deploy_plain_pool('yETH/ETH', 'yETHBP', [POOL_ETH_ADDRESS, token, ZERO_ADDRESS, ZERO_ADDRESS], 100, 4000000, 1, 2, sender=deployer)
-    curve_pool = factory.find_pool_for_coins(token, POOL_ETH_ADDRESS)
+    factory.deploy_plain_pool('yETH', 'yETH', [WETH, token, ZERO_ADDRESS, ZERO_ADDRESS], 100, 4000000, 1, 4, sender=deployer)
+    curve_pool = factory.find_pool_for_coins(WETH, token)
     curve_module.set_pool(curve_pool, sender=deployer)
-    curve_module.approve_pool(MAX, sender=operator)
+    curve_module.approve_pool_yeth(MAX, sender=operator)
+    curve_module.approve_pool_weth(MAX, sender=operator)
     return project.MockToken.at(curve_pool)
 
 @pytest.fixture
@@ -125,10 +130,23 @@ def test_from_pol_token(operator, token, curve_module):
     curve_module.from_pol(token, ONE, sender=operator)
     assert token.balanceOf(curve_module) == ONE
 
+def test_wrap(operator, weth, curve_module):
+    curve_module.from_pol(NATIVE, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
+    assert weth.balanceOf(curve_module) == ONE
+
+def test_unwrap(project, operator, weth, curve_module):
+    curve_module.from_pol(NATIVE, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
+    curve_module.unwrap(ONE, sender=operator)
+    assert weth.balanceOf(curve_module) == 0
+    assert project.provider.get_balance(curve_module.address) == ONE
+
 def test_add_liquidity(project, operator, token, curve_pool, curve_module):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     with ape.reverts():
         curve_module.add_liquidity([ONE, ONE], 2 * ONE + 1, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
@@ -140,11 +158,13 @@ def test_remove_liquidity(project, operator, token, curve_pool, curve_module):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
     
     with ape.reverts():
         curve_module.remove_liquidity(2 * ONE, [ONE + 1, ONE], sender=operator)
     curve_module.remove_liquidity(2 * ONE, [ONE, ONE], sender=operator)
+    curve_module.unwrap(ONE, sender=operator)
     assert curve_pool.balanceOf(curve_module) == 0
     assert project.provider.get_balance(curve_module.address) == ONE
     assert token.balanceOf(curve_module) == ONE
@@ -153,9 +173,11 @@ def test_remove_liquidity_imbalance(project, operator, token, curve_pool, curve_
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
     
     curve_module.remove_liquidity_imbalance([2 * ONE // 100, ONE // 100], ONE, sender=operator)
+    curve_module.unwrap(ONE * 2 // 100, sender=operator)
     bal = curve_pool.balanceOf(curve_module)
     assert bal > ONE * 196 // 100 and bal < ONE * 197 // 100
     assert project.provider.get_balance(curve_module.address) == ONE * 2 // 100
@@ -165,6 +187,7 @@ def test_deposit_gauge(operator, token, curve_module, gauge):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
 
     assert gauge.balanceOf(curve_module) == 0
@@ -175,6 +198,7 @@ def test_withdraw_gauge(operator, token, curve_pool, curve_module, gauge):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
     curve_module.deposit_gauge(2 * ONE, sender=operator)
 
@@ -187,6 +211,7 @@ def test_deposit_convex(operator, token, curve_module, convex_token):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
 
     assert convex_token.balanceOf(curve_module) == 0
@@ -197,6 +222,7 @@ def test_deposit_stake_convex(operator, token, curve_module, convex_rewards):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
 
     assert convex_rewards.balanceOf(curve_module) == 0
@@ -207,6 +233,7 @@ def test_stake_convex(operator, token, curve_module, convex_rewards):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
     curve_module.deposit_convex_booster(2 * ONE, False, sender=operator)
 
@@ -218,6 +245,7 @@ def test_withdraw_convex(operator, token, curve_module, curve_pool, convex_token
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
     curve_module.deposit_convex_booster(2 * ONE, False, sender=operator)
 
@@ -230,6 +258,7 @@ def test_unstake_convex(operator, token, curve_module, convex_token, convex_rewa
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
     curve_module.deposit_convex_booster(2 * ONE, False, sender=operator)
     curve_module.deposit_convex_rewards(2 * ONE, sender=operator)
@@ -243,6 +272,7 @@ def test_unstake_withdraw_convex(operator, token, curve_pool, curve_module, conv
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
     curve_module.deposit_convex_booster(2 * ONE, False, sender=operator)
     curve_module.deposit_convex_rewards(2 * ONE, sender=operator)
@@ -256,6 +286,7 @@ def test_deposit_yvault(operator, token, curve_module, yvault):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
     
     assert yvault.balanceOf(curve_module) == 0
@@ -266,6 +297,7 @@ def test_withdraw_yvault(operator, token, curve_module, curve_pool, yvault):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
     curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
     curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
     curve_module.deposit_yvault(2 * ONE, sender=operator)
     
