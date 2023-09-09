@@ -130,6 +130,34 @@ def test_from_pol_token(operator, token, curve_module):
     curve_module.from_pol(token, ONE, sender=operator)
     assert token.balanceOf(curve_module) == ONE
 
+def test_to_pol_native(project, operator, pol, curve_module):
+    curve_module.from_pol(NATIVE, ONE, sender=operator)
+    before = project.provider.get_balance(pol.address)
+    curve_module.to_pol(NATIVE, ONE, sender=operator)
+    assert project.provider.get_balance(curve_module.address) == 0
+    assert project.provider.get_balance(pol.address) - before == ONE
+
+def test_to_pol_native_max(project, operator, pol, curve_module):
+    curve_module.from_pol(NATIVE, ONE, sender=operator)
+    before = project.provider.get_balance(pol.address)
+    curve_module.to_pol(NATIVE, MAX, sender=operator)
+    assert project.provider.get_balance(curve_module.address) == 0
+    assert project.provider.get_balance(pol.address) - before == ONE
+
+def test_to_pol_token(operator, token, pol, curve_module):
+    curve_module.from_pol(MINT, ONE, sender=operator)
+    curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.to_pol(token, ONE, sender=operator)
+    assert token.balanceOf(curve_module) == 0
+    assert token.balanceOf(pol) == ONE
+
+def test_to_pol_token_max(operator, token, pol, curve_module):
+    curve_module.from_pol(MINT, ONE, sender=operator)
+    curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.to_pol(token, MAX, sender=operator)
+    assert token.balanceOf(curve_module) == 0
+    assert token.balanceOf(pol) == ONE
+
 def test_wrap(operator, weth, curve_module):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.wrap(ONE, sender=operator)

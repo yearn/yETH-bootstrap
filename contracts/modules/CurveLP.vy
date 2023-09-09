@@ -166,10 +166,15 @@ def to_pol(_token: address, _amount: uint256):
     @param _amount Amount of tokens to transfer
     """
     assert msg.sender == self.operator
+    amount: uint256 = _amount
     if _token == NATIVE:
-        POL(pol).receive_native(value=_amount)
+        if amount == max_value(uint256):
+            amount = self.balance
+        POL(pol).receive_native(value=amount)
     else:
-        assert ERC20(_token).transfer(pol, _amount, default_return_value=True)
+        if amount == max_value(uint256):
+            amount = ERC20(_token).balanceOf(self)
+        assert ERC20(_token).transfer(pol, amount, default_return_value=True)
     log ToPOL(_token, _amount)
 
 @external
