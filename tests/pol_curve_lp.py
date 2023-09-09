@@ -10,11 +10,14 @@ ONE    = 1_000_000_000_000_000_000
 MAX    = 2**256 - 1
 
 WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
+CRV = '0xD533a949740bb3306d119CC777fa900bA034cd52'
+CVX = '0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B'
 FACTORY = '0xB9fC157394Af804a3578134A6585C0dc9cc990d4'
 GAUGE_CONTROLLER = '0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB'
 GAUGE_CONTROLLER_ADMIN = '0x40907540d8a6C65c637785e8f8B742ae6b0b9968'
 CONVEX_POOL_MANAGER = '0xc461E1CE3795Ee30bA2EC59843d5fAe14d5782D5'
 CONVEX_BOOSTER = '0xF403C135812408BFbE8713b5A23a04b3D48AAE31'
+BASE_REWARD_POOL = '0x3Fe65692bfCD0e6CF84cB1E7d24108E434A7587e'
 YEARN_FACTORY = '0x21b1FC8A52f179757bf555346130bF27c0C2A17A'
 
 @pytest.fixture
@@ -46,7 +49,7 @@ def pol(project, alice, deployer, token):
 
 @pytest.fixture
 def curve_module(project, deployer, operator, token, pol):
-    curve_module = project.CurveLP.deploy(token, pol, WETH, sender=deployer)
+    curve_module = project.CurveLP.deploy(token, pol, WETH, CRV, sender=deployer)
     curve_module.set_operator(operator, sender=deployer)
     curve_module.accept_operator(sender=operator)
     pol.approve(MINT, curve_module, MAX, sender=deployer)
@@ -98,11 +101,12 @@ def convex_token(project, deployer, curve_module, convex_booster, convex_pool_id
     return project.MockToken.at(token)
 
 @pytest.fixture
-def convex_rewards(project, deployer, operator, curve_module, convex_booster, convex_pool_id, convex_token):
+def convex_rewards(deployer, operator, curve_module, convex_booster, convex_pool_id, convex_token):
     rewards = convex_booster.poolInfo(convex_pool_id).crvRewards
     curve_module.set_convex_rewards(rewards, sender=deployer)
     curve_module.approve_convex_rewards(MAX, sender=operator)
-    return project.MockToken.at(rewards)
+    base = Contract(BASE_REWARD_POOL).contract_type
+    return Contract(rewards, base)
 
 @pytest.fixture
 def yvault(project, deployer, operator, curve_module, gauge, convex_rewards):
@@ -222,6 +226,18 @@ def test_deposit_gauge(operator, token, curve_module, gauge):
     curve_module.deposit_gauge(2 * ONE, sender=operator)
     assert gauge.balanceOf(curve_module) == 2 * ONE
 
+def test_curve_rewards(chain, operator, token, curve_module, gauge):
+    curve_module.from_pol(NATIVE, ONE, sender=operator)
+    curve_module.from_pol(MINT, ONE, sender=operator)
+    curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
+    curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
+    curve_module.deposit_gauge(2 * ONE, sender=operator)
+
+    chain.pending_timestamp += 7 * 86_400
+    curve_module.mint_crv(sender=operator)
+    assert Contract(CRV).balanceOf(curve_module) > 0
+
 def test_withdraw_gauge(operator, token, curve_pool, curve_module, gauge):
     curve_module.from_pol(NATIVE, ONE, sender=operator)
     curve_module.from_pol(MINT, ONE, sender=operator)
@@ -268,6 +284,21 @@ def test_stake_convex(operator, token, curve_module, convex_rewards):
     assert convex_rewards.balanceOf(curve_module) == 0
     curve_module.deposit_convex_rewards(2 * ONE, sender=operator)
     assert convex_rewards.balanceOf(curve_module) == 2 * ONE
+
+def test_convex_rewards(chain, operator, alice, token, curve_module, convex_booster, convex_pool_id, convex_rewards):
+    curve_module.from_pol(NATIVE, ONE, sender=operator)
+    curve_module.from_pol(MINT, ONE, sender=operator)
+    curve_module.from_pol(token, ONE, sender=operator)
+    curve_module.wrap(ONE, sender=operator)
+    curve_module.add_liquidity([ONE, ONE], 2 * ONE, sender=operator)
+    curve_module.deposit_convex_booster(2 * ONE, True, sender=operator)
+
+    chain.pending_timestamp += 7 * 86_400
+    convex_booster.earmarkRewards(convex_pool_id, sender=alice)
+    convex_rewards.getReward(curve_module, True, sender=alice)
+
+    assert Contract(CRV).balanceOf(curve_module) > 0
+    assert Contract(CVX).balanceOf(curve_module) > 0
 
 def test_withdraw_convex(operator, token, curve_module, curve_pool, convex_token):
     curve_module.from_pol(NATIVE, ONE, sender=operator)

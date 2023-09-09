@@ -22,6 +22,12 @@ interface WETH:
     def deposit(): payable
     def withdraw(_amount: uint256): nonpayable
 
+interface CurveToken:
+    def minter() -> address: view
+
+interface CurveMinter:
+    def mint(_gauge: address): nonpayable
+
 # https://github.com/curvefi/curve-factory/blob/master/contracts/implementations/plain-2/Plain2BasicEMA.vy
 interface CurvePool:
     def add_liquidity(_amounts: uint256[2], _min_mint_amount: uint256) -> uint256: nonpayable
@@ -53,6 +59,7 @@ interface YVault:
 token: public(immutable(address))
 pol: public(immutable(address))
 weth: public(immutable(address))
+crv: public(immutable(address))
 management: public(address)
 pending_management: public(address)
 operator: public(address)
@@ -115,16 +122,18 @@ MINT: constant(address)   = 0x0000000000000000000000000000000000000001
 BURN: constant(address)   = 0x0000000000000000000000000000000000000002
 
 @external
-def __init__(_token: address, _pol: address, _weth: address):
+def __init__(_token: address, _pol: address, _weth: address, _crv: address):
     """
     @notice Constructor
     @param _token yETH token address
     @param _pol POL address
     @param _weth WETH address
+    @param _crv CRV address
     """
     token = _token
     pol = _pol
     weth = _weth
+    crv = _crv
     self.management = msg.sender
     self.operator = msg.sender
 
@@ -382,7 +391,21 @@ def withdraw_gauge(_amount: uint256, _gauge: address = empty(address)):
 
     CurveGauge(gauge).withdraw(_amount)
     log Withdraw(0, _amount, _amount)
-    
+
+@external
+def mint_crv(_gauge: address = empty(address)):
+    """
+    @notice Mint CRV rewards
+    @param _gauge Gauge to mint rewards for. Defaults to current gauge
+    """
+    assert msg.sender == self.operator
+    gauge: address = _gauge
+    if _gauge == empty(address):
+        gauge = self.gauge
+
+    minter: address = CurveToken(crv).minter()
+    CurveMinter(minter).mint(gauge)
+
 # CONVEX FUNCTIONS
 
 @external
