@@ -120,6 +120,7 @@ def __init__(_token: address, _pol: address, _weth: address):
     @notice Constructor
     @param _token yETH token address
     @param _pol POL address
+    @param _weth WETH address
     """
     token = _token
     pol = _pol
@@ -239,6 +240,11 @@ def accept_management():
 
 @external
 def remove_allowance(_token: address, _spender: address):
+    """
+    @notice Remove a token allowance
+    @param _token Token address
+    @param _spender Spender address
+    """
     assert msg.sender == self.operator
     assert ERC20(_token).approve(_spender, 0, default_return_value=True)
 
@@ -291,6 +297,7 @@ def remove_liquidity(_lp_amount: uint256, _min_amounts: uint256[2], _pool: addre
     @notice Remove liquidity from the Curve pool
     @param _lp_amount Amount of LP tokens to redeem
     @param _min_amounts Minimum amounts of ETH and yETH to receive
+    @param _pool Pool to remove liquidity from. Defaults to current pool
     """
     assert msg.sender == self.operator
     pool: address = _pool
@@ -306,6 +313,7 @@ def remove_liquidity_imbalance(_amounts: uint256[2], _max_lp: uint256, _pool: ad
     @notice Remove liquidity from the Curve pool in an imbalanced way
     @param _amounts Amounts of ETH and yETH to receive
     @param _max_lp Maximum amount of LP tokens to redeem
+    @param _pool Pool to remove liquidity from. Defaults to current pool
     """
     assert msg.sender == self.operator
     pool: address = _pool
@@ -360,6 +368,7 @@ def withdraw_gauge(_amount: uint256, _gauge: address = empty(address)):
     """
     @notice Withdraw LP tokens from gauge
     @param _amount Amount of tokens to withdraw
+    @param _gauge Gauge to withdraw from. Defaults to current gauge
     """
     assert msg.sender == self.operator
     gauge: address = _gauge
@@ -426,6 +435,7 @@ def deposit_convex_booster(_amount: uint256, _stake: bool):
     """
     @notice Deposit LP tokens into Convex
     @param _amount Amount of tokens to deposit
+    @param _stake True to immediately stake, False otherwise
     """
     assert msg.sender == self.operator
     assert self.convex_pool_id != 0
@@ -437,6 +447,8 @@ def withdraw_convex_booster(_amount: uint256, _booster: address = empty(address)
     """
     @notice Withdraw LP tokens from Convex
     @param _amount Amount of tokens to withdraw
+    @param _booster Booster address to withdraw from. Defaults to current booster
+    @param _pool_id Pool id to withdraw from. Defaults to current pool id
     """
     assert msg.sender == self.operator
     booster: address = _booster
@@ -476,6 +488,7 @@ def withdraw_convex_rewards(_amount: uint256, _unwrap: bool, _rewards: address =
     @notice Withdraw Convex LP tokens from rewards contract
     @param _amount Amount of tokens to withdraw
     @param _unwrap True to also withdraw from Convex booster, False otherwise
+    @param _rewards Rewards contract to withdraw from. Defaults to current rewards contract
     """
     assert msg.sender == self.operator
     rewards: address = _rewards
@@ -527,6 +540,7 @@ def withdraw_yvault(_shares: uint256, _max_loss: uint256, _vault: address = empt
     @notice Withdraw LP tokens from Yearn vault
     @param _shares Amount of shares to withdraw
     @param _max_loss Max loss during withdrawal
+    @param _vault Vault to withdraw from. Defaults to current vault
     """
     assert msg.sender == self.operator
     vault: address = _vault
